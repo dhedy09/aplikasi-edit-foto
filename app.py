@@ -508,23 +508,25 @@ with tab7:
     if spj_files:
         st.info(f"✅ {len(spj_files)} foto siap disusun.")
         
-        # Pengaturan Layout SPJ
+        # --- INPUT JUDUL & PENGATURAN ---
+        judul_lampiran = st.text_input("Judul Lampiran (Opsional):", "DOKUMENTASI KEGIATAN")
+        
         col_kertas, col_layout = st.columns(2)
         with col_kertas:
             jenis_kertas = st.selectbox("Ukuran Kertas Kertas:", ["A4 (21 x 29.7 cm)", "F4 (21 x 33 cm)"])
         with col_layout:
             jenis_layout = st.selectbox("Susunan Foto per Halaman:", ["2 Foto (Atas-Bawah)", "4 Foto (Grid 2x2)", "6 Foto (Grid 3x2)"])
             
-        if st.button("📑 Buat Lampiran PDF", type="primary", use_container_width=True):
-            with st.spinner("Menyusun foto ke halaman lampiran..."):
+        if st.button("📑 PROSES & LIHAT PRATINJAU", type="primary", use_container_width=True):
+            with st.spinner("Menyusun foto dan mencetak judul ke halaman..."):
                 
                 # 1. Tentukan ukuran kertas dalam Pixel (Resolusi Tinggi 300 DPI)
                 if "A4" in jenis_kertas:
                     w_kertas, h_kertas = 2480, 3508
-                else: # F4 (21 cm x 33 cm) -> dikonversi ke pixel 300 DPI
+                else: # F4 (21 cm x 33 cm)
                     w_kertas, h_kertas = 2480, 3898 
                     
-                # 2. Tentukan jumlah baris dan kolom berdasarkan pilihan
+                # 2. Tentukan jumlah baris dan kolom
                 if "2 Foto" in jenis_layout:
                     cols, rows = 1, 2
                 elif "4 Foto" in jenis_layout:
@@ -534,15 +536,25 @@ with tab7:
                     
                 # 3. Pengaturan Ruang & Margin
                 margin_x = 150 # Margin kiri-kanan kertas
-                margin_y = 200 # Margin atas-bawah (sengaja agak besar untuk tempat mengetik kop/judul)
-                jarak_x = 80   # Jarak antar foto secara horizontal
-                jarak_y = 120  # Jarak antar foto secara vertikal
+                margin_y = 300 # Margin atas-bawah (Diperbesar untuk ruang judul)
+                jarak_x = 80   # Jarak horizontal antar foto
+                jarak_y = 120  # Jarak vertikal antar foto
                 
-                # Hitung ukuran kotak / sel setiap foto
                 avail_w = w_kertas - (margin_x * 2) - (jarak_x * (cols - 1))
                 avail_h = h_kertas - (margin_y * 2) - (jarak_y * (rows - 1))
                 cell_w = avail_w // cols
                 cell_h = avail_h // rows
+                
+                # Siapkan Font untuk Judul
+                try:
+                    # Mencoba pakai font Roboto ukuran besar (karena resolusi kanvas 300 DPI sangat besar)
+                    font_judul = ImageFont.truetype("Roboto-Regular.ttf", 80)
+                except:
+                    # Jika font tidak ada, pakai bawaan sistem (mungkin terlihat agak kecil di 300 DPI)
+                    try:
+                        font_judul = ImageFont.load_default(size=80) # Untuk versi Pillow terbaru
+                    except:
+                        font_judul = ImageFont.load_default()
                 
                 halaman_spj = []
                 kanvas_spj = Image.new("RGB", (w_kertas, h_kertas), "white")
@@ -551,42 +563,63 @@ with tab7:
                 for file in spj_files:
                     img_kegiatan = Image.open(file).convert("RGB")
                     
-                    # Potong tengah agar foto tidak gepeng dan pas mengisi kotak
+                    # Potong tengah agar foto tidak gepeng
                     foto_kegiatan = ImageOps.fit(img_kegiatan, (cell_w, cell_h), method=Image.Resampling.LANCZOS, centering=(0.5, 0.5))
                     
-                    # Beri bingkai garis hitam tipis agar elegan
+                    # Bingkai garis hitam
                     draw = ImageDraw.Draw(foto_kegiatan)
                     draw.rectangle([0, 0, cell_w-1, cell_h-1], outline="black", width=4)
                     
-                    # Hitung koordinat x dan y untuk penempatan di kanvas
                     pos_c = idx_foto % cols
                     pos_r = (idx_foto // cols) % rows
                     
                     x = margin_x + pos_c * (cell_w + jarak_x)
                     y = margin_y + pos_r * (cell_h + jarak_y)
                     
-                    # Tempel foto ke kanvas kertas
+                    # Tempel foto
                     kanvas_spj.paste(foto_kegiatan, (x, y))
-                    
                     idx_foto += 1
                     
-                    # Jika halaman penuh (misal 4 dari 4) atau jika ini adalah foto terakhir
+                    # --- CEK JIKA HALAMAN PENUH ATAU FOTO TERAKHIR ---
                     if idx_foto % (cols * rows) == 0 or file == spj_files[-1]:
+                        # Tulis Judul di bagian atas halaman ini sebelum disimpan
+                        if judul_lampiran:
+                            draw_kanvas = ImageDraw.Draw(kanvas_spj)
+                            # Mencari posisi tengah (center) untuk teks judul
+                            bbox_teks = draw_kanvas.textbbox((0, 0), judul_lampiran.upper(), font=font_judul)
+                            lebar_teks = bbox_teks[2] - bbox_teks[0]
+                            posisi_x_teks = (w_kertas - lebar_teks) / 2
+                            posisi_y_teks = 100 # Jarak judul dari ujung atas kertas
+                            
+                            # Tulis teks warna hitam
+                            draw_kanvas.text((posisi_x_teks, posisi_y_teks), judul_lampiran.upper(), fill="black", font=font_judul)
+                            
+                        # Simpan halaman yang sudah jadi
                         halaman_spj.append(kanvas_spj)
+                        
                         # Buat kertas kosong baru jika masih ada foto tersisa
                         if file != spj_files[-1]:
                             kanvas_spj = Image.new("RGB", (w_kertas, h_kertas), "white")
                             
-                # Simpan Hasil ke PDF
+                # --- FITUR PRATINJAU (PREVIEW) ---
+                st.success(f"🎉 Selesai! Berhasil membuat dokumen berisi {len(halaman_spj)} halaman.")
+                st.markdown("### 👁️ Pratinjau Hasil Lampiran")
+                
+                cols_preview = st.columns(min(len(halaman_spj), 3)) 
+                for i, img_page in enumerate(halaman_spj):
+                    cols_preview[i % 3].image(img_page, caption=f"Halaman {i+1}", use_container_width=True)
+                
+                st.markdown("---")
+                
+                # --- TOMBOL DOWNLOAD PDF ---
                 buf_pdf_spj = io.BytesIO()
                 if halaman_spj:
                     halaman_spj[0].save(buf_pdf_spj, format="PDF", save_all=True, append_images=halaman_spj[1:])
                     
-                    st.success(f"🎉 Selesai! Berhasil membuat dokumen berisi {len(halaman_spj)} halaman.")
                     st.download_button(
-                        label=f"📥 Download Lampiran SPJ ({jenis_kertas})", 
+                        label=f"📥 Download File PDF ({jenis_kertas})", 
                         data=buf_pdf_spj.getvalue(), 
-                        file_name=f"Lampiran_Dokumentasi_{jenis_kertas[:2]}.pdf", 
+                        file_name=f"Lampiran_Dokumentasi.pdf", 
                         mime="application/pdf", 
                         type="primary", 
                         use_container_width=True
