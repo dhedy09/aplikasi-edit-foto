@@ -405,9 +405,9 @@ with tab6:
         st.info("💡 Sesuaikan nilai ini jika jarak antar foto terlalu sempit atau terlalu lebar.")
         col_margin, col_jarak = st.columns(2)
         with col_margin:
-            margin_tepi = st.number_input("Margin Tepi Kertas (pixel)", min_value=0, max_value=200, value=40, help="Jarak aman dari batas ujung kertas (agar tidak terpotong printer).")
+            margin_tepi = st.number_input("Margin Tepi Kertas (pixel)", min_value=0, max_value=200, value=50, help="Jarak aman dari batas ujung kertas (agar tidak terpotong printer).")
         with col_jarak:
-            jarak_foto = st.number_input("Jarak Antar Foto (pixel)", min_value=0, max_value=150, value=30, help="Ruang putih di antara foto untuk tempat menggunting.")
+            jarak_foto = st.number_input("Jarak Antar Foto (pixel)", min_value=0, max_value=150, value=50, help="Ruang putih di antara foto untuk tempat menggunting.")
 
         # 3. Proses Gabungkan ke PDF & Preview
         if st.button("🖨️ PROSES & LIHAT PRATINJAU", type="primary", use_container_width=True):
@@ -496,6 +496,7 @@ with tab6:
                     type="primary", 
                     use_container_width=True
                 )
+
 
 
 
