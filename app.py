@@ -678,78 +678,61 @@ with tab8:
     ttd_file = st.file_uploader("Unggah Foto Tanda Tangan / Stempel...", type=["jpg", "png", "jpeg"], key="upload_ttd")
     
     if ttd_file:
-        # 1. Buka dan putar sesuai orientasi kamera asli
+        # 1. Buka dan perbaiki rotasi dari HP (EXIF fix)
         img_raw = Image.open(ttd_file)
-        img_raw = ImageOps.exif_transpose(img_raw)
-        img_ready = img_raw.convert("RGB")
+        img_ttd_asli = ImageOps.exif_transpose(img_raw).convert("RGBA")
+        
+        # --- UI BERSAMPINGAN ---
+        col_asli, col_hasil = st.columns(2, gap="medium")
+        
+        with col_asli:
+            st.markdown("### 📷 1. Foto Asli")
+            st.image(img_ttd_asli, use_container_width=True)
             
-        # 2. JURUS AMPUH ANTI-MELESET: 
-        # Kita kecilkan gambarnya agar pas dengan layar, lalu kita "Cuci Bersih"
-        # dengan menyimpannya ke memori sementara (menghapus semua metadata kamera/EXIF).
-        img_ready.thumbnail((700, 700), Image.Resampling.LANCZOS)
-        
-        temp_io = io.BytesIO()
-        img_ready.save(temp_io, format="PNG") # Simpan sebagai PNG murni
-        img_bersih = Image.open(temp_io)      # Buka kembali gambar yang sudah bersih
-        
-        # --- UI GAMBAR BERSAMPINGAN ---
-        col_kiri, col_kanan = st.columns(2, gap="medium")
-        
-        with col_kiri:
-            st.markdown("### 📷 1. Potong (Crop)")
-            # Alat crop menggunakan gambar yang sudah "dicuci bersih"
-            cropped_img = st_cropper(img_bersih, realtime_update=False, box_color='#0066cc', aspect_ratio=None)
-            
-        with col_kanan:
-            st.markdown("### ✨ 2. Hasil Transparan")
-            # Tempat penampungan hasil (akan muncul jika tombol proses diklik)
-            if 'hasil_ttd_final' in st.session_state:
-                st.image(st.session_state['hasil_ttd_final'], use_container_width=True)
-                
-                # Tombol download diletakkan tepat di bawah hasilnya
-                buf_ttd = io.BytesIO()
-                st.session_state['hasil_ttd_final'].save(buf_ttd, format="PNG")
-                
-                from datetime import datetime
-                waktu_sekarang = datetime.now().strftime("%Y%m%d_%H%M%S")
-                
-                st.download_button(
-                    label="📥 Download PNG", 
-                    data=buf_ttd.getvalue(), 
-                    file_name=f"TTD_{waktu_sekarang}.png", 
-                    mime="image/png", 
-                    type="primary", 
-                    use_container_width=True
-                )
-            else:
-                st.info("Atur kotak biru di sebelah kiri, lalu klik tombol PROSES di bawah untuk melihat hasil di sini.")
-
-        # --- UI PENGATURAN & TOMBOL DI BAWAH ---
+        # --- PENGATURAN REAL-TIME DI TENGAH ---
         st.markdown("---")
-        st.markdown("### ⚙️ Pengaturan Ketajaman Tinta")
+        st.markdown("### ⚙️ Pengaturan Transparansi (Real-Time)")
+        st.info("💡 Geser tuas di bawah ini sampai latar belakang kertas hilang dan tinta terlihat jelas.")
         
         col_set1, col_set2 = st.columns(2)
         with col_set1:
-            toleransi = st.slider("Toleransi Penghapus Kertas", min_value=0, max_value=255, value=200, help="Geser ke kanan jika latar kertas masih terlihat kotor/abu-abu.")
+            toleransi = st.slider("Penghapus Kertas (Toleransi)", min_value=0, max_value=255, value=200, help="Semakin tinggi, semakin banyak bagian kertas yang dihapus.")
         with col_set2:
-            kontras = st.slider("Tebalkan Tinta (Kontras)", min_value=1.0, max_value=5.0, value=2.0, step=0.1, help="Geser ke kanan agar tinta pulpen/stempel makin pekat.")
+            kontras = st.slider("Tebalkan Tinta (Kontras)", min_value=1.0, max_value=5.0, value=2.0, step=0.1, help="Menebalkan warna tinta agar tidak pudar.")
             
-        if st.button("✨ PROSES & LIHAT HASIL", type="primary", use_container_width=True):
-            with st.spinner("Menghapus latar belakang kertas..."):
-                img_crop_rgba = cropped_img.convert("RGBA")
-                enhancer = ImageEnhance.Contrast(img_crop_rgba)
-                img_kontras = enhancer.enhance(kontras)
-                
-                data_piksel = np.array(img_kontras)
-                r, g, b = data_piksel[:, :, 0], data_piksel[:, :, 1], data_piksel[:, :, 2]
-                kecerahan = (0.299 * r) + (0.587 * g) + (0.114 * b)
-                
-                alpha_channel = np.where(kecerahan > toleransi, 0, 255).astype(np.uint8)
-                data_piksel[:, :, 3] = alpha_channel
-                
-                # Simpan hasil ke memori agar muncul di kolom kanan
-                st.session_state['hasil_ttd_final'] = Image.fromarray(data_piksel)
-                st.rerun() # Refresh agar gambar langsung muncul di kanan
+        # --- PROSES INSTAN (TANPA TOMBOL) ---
+        enhancer = ImageEnhance.Contrast(img_ttd_asli)
+        img_kontras = enhancer.enhance(kontras)
+        
+        data_piksel = np.array(img_kontras)
+        r, g, b = data_piksel[:, :, 0], data_piksel[:, :, 1], data_piksel[:, :, 2]
+        kecerahan = (0.299 * r) + (0.587 * g) + (0.114 * b)
+        
+        alpha_channel = np.where(kecerahan > toleransi, 0, 255).astype(np.uint8)
+        data_piksel[:, :, 3] = alpha_channel
+        
+        img_hasil_ttd = Image.fromarray(data_piksel)
+        
+        # --- TAMPILKAN HASIL DI KANAN ---
+        with col_hasil:
+            st.markdown("### ✨ 2. Hasil Transparan")
+            st.image(img_hasil_ttd, use_container_width=True)
+            
+            buf_ttd = io.BytesIO()
+            img_hasil_ttd.save(buf_ttd, format="PNG")
+            
+            # Memperbaiki error datetime yang Anda alami sebelumnya
+            from datetime import datetime
+            waktu_sekarang = datetime.now().strftime("%Y%m%d_%H%M%S")
+            
+            st.download_button(
+                label="📥 Download (PNG Transparan)", 
+                data=buf_ttd.getvalue(), 
+                file_name=f"TTD_{waktu_sekarang}.png", 
+                mime="image/png", 
+                type="primary", 
+                use_container_width=True
+            )
         
 # --- FOOTER APLIKASI ---
 st.markdown("---")
@@ -760,6 +743,7 @@ st.markdown(
     "</div>", 
     unsafe_allow_html=True
 )
+
 
 
 
