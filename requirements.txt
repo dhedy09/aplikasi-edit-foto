@@ -1,3 +1,5 @@
 streamlit
 rembg[cpu]
 pillow
+opencv-python
+scikit-image
