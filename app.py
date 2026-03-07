@@ -683,13 +683,17 @@ with tab8:
     ttd_file = st.file_uploader("Unggah Foto Tanda Tangan / Stempel...", type=["jpg", "png", "jpeg"], key="upload_ttd")
     
     if ttd_file:
-        img_ttd_asli = Image.open(ttd_file).convert("RGB")
+        # 1. Buka gambar
+        img_ttd_raw = Image.open(ttd_file).convert("RGB")
+        
+        # 2. PERBAIKAN EXIF: Putar gambar sesuai orientasi asli kamera HP agar koordinat crop akurat 100%
+        img_ttd_asli = ImageOps.exif_transpose(img_ttd_raw)
         
         st.markdown("---")
         st.markdown("### ✂️ 1. Potong Area Tanda Tangan")
-        st.info("💡 Sesuaikan kotak biru di bawah ini. Jika sudah pas, atur tuas dan klik tombol PROSES di bawah.")
+        st.info("💡 Sesuaikan kotak biru di bawah ini untuk mengambil area tanda tangannya saja. Jika sudah pas, atur tuas dan klik tombol PROSES di bawah.")
         
-        # Biarkan False agar kotak tidak lari-lari saat ditarik
+        # 3. FITUR CROP: realtime_update=False agar kotak jinak dan tidak lompat-lompat saat ditarik
         cropped_img = st_cropper(img_ttd_asli, realtime_update=False, box_color='#0066cc', aspect_ratio=None)
         
         st.markdown("---")
@@ -697,30 +701,37 @@ with tab8:
         
         col_set1, col_set2 = st.columns(2)
         with col_set1:
-            toleransi = st.slider("Toleransi Penghapus Kertas", min_value=0, max_value=255, value=200)
+            toleransi = st.slider("Toleransi Penghapus Kertas", min_value=0, max_value=255, value=200, help="Semakin tinggi, semakin banyak bagian terang (kertas) yang dihapus.")
         with col_set2:
-            kontras = st.slider("Tebalkan Tinta (Kontras)", min_value=1.0, max_value=5.0, value=2.0, step=0.1)
+            kontras = st.slider("Tebalkan Tinta (Kontras)", min_value=1.0, max_value=5.0, value=2.0, step=0.1, help="Menebalkan warna tinta agar tidak pudar setelah kertas dihapus.")
             
-        # TOMBOL BARU UNTUK MENGUNCI HASIL
+        # 4. TOMBOL PROSES & SIMPAN KE MEMORI STREAMLIT
         if st.button("✨ PROSES & KUNCI HASIL CROP", type="primary", use_container_width=True):
             with st.spinner("Memproses transparansi..."):
-                # Proses gambar seperti biasa
+                # Ubah gambar hasil crop ke RGBA agar mendukung latar transparan
                 img_crop_rgba = cropped_img.convert("RGBA")
+                
+                # Tingkatkan kontras tinta
                 enhancer = ImageEnhance.Contrast(img_crop_rgba)
                 img_kontras = enhancer.enhance(kontras)
                 
+                # Ubah ke array matematika (NumPy) untuk manipulasi piksel
                 data_piksel = np.array(img_kontras)
                 r, g, b = data_piksel[:, :, 0], data_piksel[:, :, 1], data_piksel[:, :, 2]
+                
+                # Hitung tingkat kecerahan
                 kecerahan = (0.299 * r) + (0.587 * g) + (0.114 * b)
                 
+                # Hapus area terang (kertas) sesuai nilai toleransi
                 alpha_channel = np.where(kecerahan > toleransi, 0, 255).astype(np.uint8)
                 data_piksel[:, :, 3] = alpha_channel
-                img_hasil_sementara = Image.fromarray(data_piksel)
                 
-                # SIMPAN KE MEMORI STREAMLIT (SESSION STATE)
+                # Simpan hasil akhir ke brankas memori (Session State)
+                img_hasil_sementara = Image.fromarray(data_piksel)
                 st.session_state['hasil_ttd_final'] = img_hasil_sementara
 
-        # Jika sudah ada gambar di dalam memori, baru kita munculkan hasilnya dan tombol Download
+        # 5. TAMPILKAN HASIL DARI MEMORI & TOMBOL DOWNLOAD
+        # Bagian ini hanya akan muncul JIKA tombol proses di atas sudah pernah diklik
         if 'hasil_ttd_final' in st.session_state:
             st.markdown("### ✨ 3. Hasil Transparan Siap Download")
             
@@ -728,11 +739,10 @@ with tab8:
             with col_hasil_tengah:
                 st.image(st.session_state['hasil_ttd_final'], use_container_width=True)
                 
-            # Tombol Download mengambil data dari MEMORI, bukan dari cropper
+            # Siapkan file untuk didownload (Mengambil dari memori, bukan dari layar crop)
             buf_ttd = io.BytesIO()
             st.session_state['hasil_ttd_final'].save(buf_ttd, format="PNG")
             
-            import datetime
             waktu_sekarang = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
             
             st.download_button(
@@ -753,6 +763,7 @@ st.markdown(
     "</div>", 
     unsafe_allow_html=True
 )
+
 
 
 
