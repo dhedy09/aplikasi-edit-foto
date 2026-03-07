@@ -59,7 +59,8 @@ with st.sidebar:
 
 # --- NAVIGASI MODERN (TABS) ---
 st.title("✨ Studio Multatuli AI")
-tab1, tab2, tab3 = st.tabs(["✂️ AI Background Remover", "🗜️ Smart Image Compressor", "🎨 Editor Warna & Cahaya"])
+#tab1, tab2, tab3 = st.tabs(["✂️ AI Background Remover", "🗜️ Smart Image Compressor", "🎨 Editor Warna & Cahaya"])
+tab1, tab2, tab3, tab4 = st.tabs(["✂️ AI Background", "🗜️ Compressor", "🎨 Warna & Cahaya", "🔄 Ubah Format"])
 
 # ==========================================
 # TAB 1: HAPUS LATAR (AI)
@@ -239,3 +240,39 @@ with tab3:
             type="primary",
             use_container_width=True
         )
+
+# ==========================================
+# TAB 4: KONVERTER FORMAT (UBAH KE JPG/PNG/WEBP)
+# ==========================================
+with tab4:
+    st.write("Ubah format foto Anda ke resolusi atau ekstensi lain dengan mudah.")
+    
+    convert_file = st.file_uploader("Unggah foto yang akan diubah formatnya...", type=["jpg", "png", "jpeg", "webp"], key="upload_convert")
+    
+    if convert_file:
+        img_konversi = Image.open(convert_file)
+        st.image(img_konversi, caption="Foto Asli", use_container_width=True)
+        
+        st.markdown("---")
+        format_tujuan = st.selectbox("Pilih Format Hasil Akhir:", ["PNG", "JPEG", "WEBP"])
+        
+        if st.button(f"🔄 Ubah ke {format_tujuan}", type="primary", use_container_width=True):
+            with st.spinner(f"Mengubah ke {format_tujuan}..."):
+                # Jika ingin simpan ke JPEG tapi foto aslinya PNG (punya transparansi), ubah mode warnanya dulu
+                if format_tujuan == "JPEG" and img_konversi.mode in ("RGBA", "P"):
+                    img_konversi = img_konversi.convert("RGB")
+                    
+                buf_konversi = io.BytesIO()
+                img_konversi.save(buf_konversi, format=format_tujuan)
+                
+                st.success(f"Berhasil diubah ke {format_tujuan}!")
+                
+                # Ekstensi file otomatis menyesuaikan pilihan
+                ekstensi = format_tujuan.lower()
+                st.download_button(
+                    label=f"📥 Download File .{ekstensi}",
+                    data=buf_konversi.getvalue(),
+                    file_name=f"hasil_konversi.{ekstensi}",
+                    mime=f"image/{ekstensi}",
+                    type="primary"
+                )
