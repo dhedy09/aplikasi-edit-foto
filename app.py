@@ -421,41 +421,49 @@ with tab6:
                 semua_pesanan.sort(key=lambda x: ukuran_px[x['uk']][0] * ukuran_px[x['uk']][1], reverse=True)
                 
                 a4_w, a4_h = 2480, 3508
-                margin = 50
+                
+                # --- OPTIMASI PENGHEMATAN KERTAS ---
+                margin_tepi = 40  # Jarak aman dari tepi printer (sekitar 3,4 mm)
+                jarak_foto = 15   # Jarak super rapat antar foto untuk gunting (sekitar 1,2 mm)
+                # -----------------------------------
+                
                 halaman_cetak = []
                 kanvas = Image.new("RGB", (a4_w, a4_h), "white")
-                x, y, tinggi_baris = margin, margin, 0
+                
+                # Mulai dari pojok kiri atas (sesuai margin tepi)
+                x, y, tinggi_baris = margin_tepi, margin_tepi, 0
                 
                 for item in semua_pesanan:
                     w_px, h_px = ukuran_px[item['uk']]
                     foto_crop = ImageOps.fit(item['img'], (w_px, h_px), method=Image.Resampling.LANCZOS, centering=(0.5, 0.5))
                     
-                    # --- BORDER HITAM TIPIS UNTUK GARIS GUNTING ---
+                    # Border hitam tipis untuk garis gunting
                     draw_border = ImageDraw.Draw(foto_crop)
                     draw_border.rectangle([0, 0, w_px - 1, h_px - 1], outline="black", width=2)
-                    # ----------------------------------------------
 
                     if item['uk'] == "10R":
-                        k10 = Image.new("RGB", (w_px + margin*2, h_px + margin*2), "white")
-                        k10.paste(foto_crop, (margin, margin))
+                        k10 = Image.new("RGB", (w_px + margin_tepi*2, h_px + margin_tepi*2), "white")
+                        k10.paste(foto_crop, (margin_tepi, margin_tepi))
                         halaman_cetak.append(k10)
                         continue
 
-                    # Cek muat ke kanan
-                    if x + w_px + margin > a4_w:
-                        x = margin
-                        y += tinggi_baris + margin
+                    # Cek apakah muat ke kanan (memperhitungkan margin tepi kanan kertas)
+                    if x + w_px + margin_tepi > a4_w:
+                        x = margin_tepi  # Kembali ke kiri
+                        y += tinggi_baris + jarak_foto  # Turun ke baris baru, jaraknya dirapatkan
                         tinggi_baris = 0
                         
-                    # Cek muat ke bawah (ganti kertas)
-                    if y + h_px + margin > a4_h:
-                        halaman_cetak.append(kanvas)
-                        kanvas = Image.new("RGB", (a4_w, a4_h), "white")
-                        x, y, tinggi_baris = margin, margin, 0
+                    # Cek apakah muat ke bawah (memperhitungkan margin tepi bawah kertas)
+                    if y + h_px + margin_tepi > a4_h:
+                        halaman_cetak.append(kanvas) # Simpan kertas yang sudah penuh
+                        kanvas = Image.new("RGB", (a4_w, a4_h), "white") # Ambil kertas baru
+                        x, y, tinggi_baris = margin_tepi, margin_tepi, 0
                         
                     # Tempel foto
                     kanvas.paste(foto_crop, (x, y))
-                    x += w_px + margin
+                    
+                    # Geser x untuk foto berikutnya dengan jarak yang sangat rapat
+                    x += w_px + jarak_foto
                     tinggi_baris = max(tinggi_baris, h_px)
                 
                 # Masukkan sisa kertas terakhir
@@ -468,6 +476,7 @@ with tab6:
                 
                 st.success(f"🎉 Selesai! Menggunakan {len(halaman_cetak)} halaman kertas A4.")
                 st.download_button("📥 Download File PDF (Siap Print)", buf_pdf.getvalue(), "cetak_massal_multatuli.pdf", "application/pdf", type="primary", use_container_width=True)
+
 
 
 
