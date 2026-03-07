@@ -683,79 +683,66 @@ with tab8:
     ttd_file = st.file_uploader("Unggah Foto Tanda Tangan / Stempel...", type=["jpg", "png", "jpeg"], key="upload_ttd")
     
     if ttd_file:
-        # Buka gambar (gunakan RGB dulu untuk cropper)
         img_ttd_asli = Image.open(ttd_file).convert("RGB")
         
         st.markdown("---")
         st.markdown("### ✂️ 1. Potong Area Tanda Tangan")
-        st.info("💡 Tarik ujung kotak biru di bawah ini untuk mengambil area tanda tangannya saja (buang area meja/bayangan).")
+        st.info("💡 Sesuaikan kotak biru di bawah ini. Jika sudah pas, atur tuas dan klik tombol PROSES di bawah.")
         
-        # FITUR BARU: Memunculkan alat Crop Interaktif
-        # realtime_update=True agar hasil crop langsung muncul
+        # Biarkan False agar kotak tidak lari-lari saat ditarik
         cropped_img = st_cropper(img_ttd_asli, realtime_update=False, box_color='#0066cc', aspect_ratio=None)
         
         st.markdown("---")
         st.markdown("### ⚙️ 2. Pengaturan Ekstraksi")
-        st.info("💡 Geser tuas di bawah ini sampai latar belakang kertas hilang dan tinta terlihat jelas.")
         
-        # Kontrol interaktif
         col_set1, col_set2 = st.columns(2)
         with col_set1:
-            toleransi = st.slider("Toleransi Penghapus Kertas", min_value=0, max_value=255, value=200, help="Semakin tinggi, semakin banyak bagian terang (kertas) yang dihapus.")
+            toleransi = st.slider("Toleransi Penghapus Kertas", min_value=0, max_value=255, value=200)
         with col_set2:
-            kontras = st.slider("Tebalkan Tinta (Kontras)", min_value=1.0, max_value=5.0, value=2.0, step=0.1, help="Menebalkan warna tinta agar tidak pudar setelah kertas dihapus.")
+            kontras = st.slider("Tebalkan Tinta (Kontras)", min_value=1.0, max_value=5.0, value=2.0, step=0.1)
             
-        # Proses Gambar (Menggunakan gambar yang SUDAH di-crop)
-        with st.spinner("Memproses transparansi..."):
-            # Ubah gambar hasil crop ke RGBA (agar bisa punya background transparan)
-            img_crop_rgba = cropped_img.convert("RGBA")
+        # TOMBOL BARU UNTUK MENGUNCI HASIL
+        if st.button("✨ PROSES & KUNCI HASIL CROP", type="primary", use_container_width=True):
+            with st.spinner("Memproses transparansi..."):
+                # Proses gambar seperti biasa
+                img_crop_rgba = cropped_img.convert("RGBA")
+                enhancer = ImageEnhance.Contrast(img_crop_rgba)
+                img_kontras = enhancer.enhance(kontras)
+                
+                data_piksel = np.array(img_kontras)
+                r, g, b = data_piksel[:, :, 0], data_piksel[:, :, 1], data_piksel[:, :, 2]
+                kecerahan = (0.299 * r) + (0.587 * g) + (0.114 * b)
+                
+                alpha_channel = np.where(kecerahan > toleransi, 0, 255).astype(np.uint8)
+                data_piksel[:, :, 3] = alpha_channel
+                img_hasil_sementara = Image.fromarray(data_piksel)
+                
+                # SIMPAN KE MEMORI STREAMLIT (SESSION STATE)
+                st.session_state['hasil_ttd_final'] = img_hasil_sementara
+
+        # Jika sudah ada gambar di dalam memori, baru kita munculkan hasilnya dan tombol Download
+        if 'hasil_ttd_final' in st.session_state:
+            st.markdown("### ✨ 3. Hasil Transparan Siap Download")
             
-            # 1. Tingkatkan kontras
-            enhancer = ImageEnhance.Contrast(img_crop_rgba)
-            img_kontras = enhancer.enhance(kontras)
+            col_dummy1, col_hasil_tengah, col_dummy2 = st.columns([1, 2, 1])
+            with col_hasil_tengah:
+                st.image(st.session_state['hasil_ttd_final'], use_container_width=True)
+                
+            # Tombol Download mengambil data dari MEMORI, bukan dari cropper
+            buf_ttd = io.BytesIO()
+            st.session_state['hasil_ttd_final'].save(buf_ttd, format="PNG")
             
-            # 2. Ubah gambar ke format array angka (NumPy)
-            data_piksel = np.array(img_kontras)
+            import datetime
+            waktu_sekarang = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
             
-            # Pisahkan warna
-            r = data_piksel[:, :, 0]
-            g = data_piksel[:, :, 1]
-            b = data_piksel[:, :, 2]
-            
-            # Hitung kecerahan
-            kecerahan = (0.299 * r) + (0.587 * g) + (0.114 * b)
-            
-            # 3. Kunci utamanya: Buat transparan yang lebih terang dari toleransi
-            alpha_channel = np.where(kecerahan > toleransi, 0, 255).astype(np.uint8)
-            
-            # Terapkan transparansi
-            data_piksel[:, :, 3] = alpha_channel
-            
-            # Kembalikan jadi gambar
-            img_hasil_ttd = Image.fromarray(data_piksel)
-            
-        # Tampilkan Hasil Akhir
-        st.markdown("### ✨ 3. Hasil Transparan")
-        col_dummy1, col_hasil_tengah, col_dummy2 = st.columns([1, 2, 1])
-        with col_hasil_tengah:
-            st.image(img_hasil_ttd, use_container_width=True)
-            
-        # Tombol Download
-        buf_ttd = io.BytesIO()
-        img_hasil_ttd.save(buf_ttd, format="PNG")
-        
-        # Tambahkan tanggal di nama file agar tidak tertimpa
-        import datetime
-        waktu_sekarang = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-        
-        st.download_button(
-            label="📥 Download Tanda Tangan (PNG Transparan)", 
-            data=buf_ttd.getvalue(), 
-            file_name=f"TTD_Transparan_{waktu_sekarang}.png", 
-            mime="image/png", 
-            type="primary", 
-            use_container_width=True
-        )
+            st.download_button(
+                label="📥 Download Tanda Tangan (PNG Transparan)", 
+                data=buf_ttd.getvalue(), 
+                file_name=f"TTD_Transparan_{waktu_sekarang}.png", 
+                mime="image/png", 
+                type="primary", 
+                use_container_width=True
+            )
         
 # --- FOOTER APLIKASI ---
 st.markdown("---")
@@ -766,6 +753,7 @@ st.markdown(
     "</div>", 
     unsafe_allow_html=True
 )
+
 
 
 
