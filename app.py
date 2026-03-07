@@ -7,8 +7,29 @@ import io
 import numpy as np
 from streamlit_cropper import st_cropper
 
-# --- KONFIGURASI HALAMAN ---
-st.set_page_config(page_title="Studio AI Ultra", layout="centered", page_icon="✨")
+# --- 1. KONFIGURASI HALAMAN (WAJIB PALING ATAS & CUMA 1 KALI) ---
+st.set_page_config(
+    page_title="Studio Mamayo | Alat Foto & SPJ",
+    page_icon="📸",
+    layout="wide", # Pastikan selalu wide agar tidak sempit
+    initial_sidebar_state="expanded"
+)
+
+# --- 2. HILANGKAN JEJAK STREAMLIT (CSS) ---
+st.markdown("""
+    <style>
+    #MainMenu {visibility: hidden;}
+    footer {visibility: hidden;}
+    header {visibility: hidden;}
+    .stButton>button {
+        border-radius: 8px;
+        transition: all 0.3s;
+    }
+    .stButton>button:hover {
+        transform: scale(1.02);
+    }
+    </style>
+""", unsafe_allow_html=True)
 
 # --- SISTEM LOGIN (KATA SANDI) ---
 if "authenticated" not in st.session_state:
@@ -66,32 +87,6 @@ with st.sidebar:
         st.session_state.authenticated = False
         bersihkan_memori()
         st.rerun()
-
-# Letakkan di baris paling atas setelah import
-st.set_page_config(
-    page_title="Studio Mamayo | Alat Foto & SPJ",
-    page_icon="📸",
-    layout="wide", # Menggunakan seluruh lebar layar komputer
-    initial_sidebar_state="expanded"
-)
-
-# Menyembunyikan elemen bawaan Streamlit agar terlihat seperti aplikasi mandiri
-st.markdown("""
-    <style>
-    #MainMenu {visibility: hidden;}
-    footer {visibility: hidden;}
-    header {visibility: hidden;}
-    
-    /* Memoles tampilan tombol agar lebih melengkung dan modern */
-    .stButton>button {
-        border-radius: 8px;
-        transition: all 0.3s;
-    }
-    .stButton>button:hover {
-        transform: scale(1.02);
-    }
-    </style>
-""", unsafe_allow_html=True)
 
 # --- PENGATURAN SIDEBAR KIRI ---
 with st.sidebar:
@@ -683,69 +678,77 @@ with tab8:
     ttd_file = st.file_uploader("Unggah Foto Tanda Tangan / Stempel...", type=["jpg", "png", "jpeg"], key="upload_ttd")
     
     if ttd_file:
-        img_ttd_asli = Image.open(ttd_file).convert("RGBA")
+        # 1. Buka gambar
+        img_ttd_raw = Image.open(ttd_file).convert("RGB")
         
-        col_asli, col_hasil = st.columns(2)
+        # 2. PERBAIKAN EXIF: Putar gambar sesuai orientasi asli kamera HP agar koordinat crop akurat 100%
+        img_ttd_asli = ImageOps.exif_transpose(img_ttd_raw)
         
-        with col_asli:
-            st.markdown("**📷 Foto Asli**")
-            st.image(img_ttd_asli, use_container_width=True)
-            
         st.markdown("---")
-        st.markdown("### ⚙️ Pengaturan Ekstraksi")
-        st.info("💡 Geser tuas di bawah ini sampai latar belakang kertas hilang dan tinta terlihat jelas.")
+        st.markdown("### ✂️ 1. Potong Area Tanda Tangan")
+        st.info("💡 Sesuaikan kotak biru di bawah ini untuk mengambil area tanda tangannya saja. Jika sudah pas, atur tuas dan klik tombol PROSES di bawah.")
         
-        # Kontrol interaktif
+        # 3. FITUR CROP: realtime_update=False agar kotak jinak dan tidak lompat-lompat saat ditarik
+        cropped_img = st_cropper(img_ttd_asli, realtime_update=False, box_color='#0066cc', aspect_ratio=None)
+        
+        st.markdown("---")
+        st.markdown("### ⚙️ 2. Pengaturan Ekstraksi")
+        
         col_set1, col_set2 = st.columns(2)
         with col_set1:
             toleransi = st.slider("Toleransi Penghapus Kertas", min_value=0, max_value=255, value=200, help="Semakin tinggi, semakin banyak bagian terang (kertas) yang dihapus.")
         with col_set2:
             kontras = st.slider("Tebalkan Tinta (Kontras)", min_value=1.0, max_value=5.0, value=2.0, step=0.1, help="Menebalkan warna tinta agar tidak pudar setelah kertas dihapus.")
             
-        # Proses Gambar
-        with st.spinner("Memproses transparansi..."):
-            # 1. Tingkatkan kontras dulu agar tinta makin pekat dan kertas makin putih
-            enhancer = ImageEnhance.Contrast(img_ttd_asli)
-            img_kontras = enhancer.enhance(kontras)
+        # 4. TOMBOL PROSES & SIMPAN KE MEMORI STREAMLIT
+        if st.button("✨ PROSES & KUNCI HASIL CROP", type="primary", use_container_width=True):
+            with st.spinner("Memproses transparansi..."):
+                # Ubah gambar hasil crop ke RGBA agar mendukung latar transparan
+                img_crop_rgba = cropped_img.convert("RGBA")
+                
+                # Tingkatkan kontras tinta
+                enhancer = ImageEnhance.Contrast(img_crop_rgba)
+                img_kontras = enhancer.enhance(kontras)
+                
+                # Ubah ke array matematika (NumPy) untuk manipulasi piksel
+                data_piksel = np.array(img_kontras)
+                r, g, b = data_piksel[:, :, 0], data_piksel[:, :, 1], data_piksel[:, :, 2]
+                
+                # Hitung tingkat kecerahan
+                kecerahan = (0.299 * r) + (0.587 * g) + (0.114 * b)
+                
+                # Hapus area terang (kertas) sesuai nilai toleransi
+                alpha_channel = np.where(kecerahan > toleransi, 0, 255).astype(np.uint8)
+                data_piksel[:, :, 3] = alpha_channel
+                
+                # Simpan hasil akhir ke brankas memori (Session State)
+                img_hasil_sementara = Image.fromarray(data_piksel)
+                st.session_state['hasil_ttd_final'] = img_hasil_sementara
+
+        # 5. TAMPILKAN HASIL DARI MEMORI & TOMBOL DOWNLOAD
+        # Bagian ini hanya akan muncul JIKA tombol proses di atas sudah pernah diklik
+        if 'hasil_ttd_final' in st.session_state:
+            st.markdown("### ✨ 3. Hasil Transparan Siap Download")
             
-            # 2. Ubah gambar ke format array angka (NumPy) untuk manipulasi piksel
-            data_piksel = np.array(img_kontras)
+            col_dummy1, col_hasil_tengah, col_dummy2 = st.columns([1, 2, 1])
+            with col_hasil_tengah:
+                st.image(st.session_state['hasil_ttd_final'], use_container_width=True)
+                
+            # Siapkan file untuk didownload (Mengambil dari memori, bukan dari layar crop)
+            buf_ttd = io.BytesIO()
+            st.session_state['hasil_ttd_final'].save(buf_ttd, format="PNG")
             
-            # Pisahkan warna Red, Green, Blue
-            r = data_piksel[:, :, 0]
-            g = data_piksel[:, :, 1]
-            b = data_piksel[:, :, 2]
+            # waktu_sekarang = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+            waktu_sekarang = datetime.now().strftime("%Y%m%d_%H%M%S")
             
-            # Hitung tingkat kecerahan setiap piksel (Grayscale / Luma)
-            # Rumus standar kecerahan gambar
-            kecerahan = (0.299 * r) + (0.587 * g) + (0.114 * b)
-            
-            # 3. Kunci utamanya: Jika kecerahan piksel LEBIH BESAR dari toleransi, jadikan transparan (Alpha = 0)
-            # Jika LEBIH KECIL (berarti itu tinta gelap), biarkan tetap solid (Alpha = 255)
-            alpha_channel = np.where(kecerahan > toleransi, 0, 255).astype(np.uint8)
-            
-            # Terapkan transparansi ke gambar
-            data_piksel[:, :, 3] = alpha_channel
-            
-            # Kembalikan array angka menjadi gambar
-            img_hasil_ttd = Image.fromarray(data_piksel)
-            
-        with col_hasil:
-            st.markdown("**✨ Hasil Transparan**")
-            # Tampilkan gambar di Streamlit (Streamlit otomatis memberi latar belakang kotak-kotak/gelap untuk PNG transparan)
-            st.image(img_hasil_ttd, use_container_width=True)
-            
-        # Tombol Download
-        buf_ttd = io.BytesIO()
-        img_hasil_ttd.save(buf_ttd, format="PNG")
-        st.download_button(
-            label="📥 Download Tanda Tangan (PNG Transparan)", 
-            data=buf_ttd.getvalue(), 
-            file_name="Tanda_Tangan_Transparan.png", 
-            mime="image/png", 
-            type="primary", 
-            use_container_width=True
-        )
+            st.download_button(
+                label="📥 Download Tanda Tangan (PNG Transparan)", 
+                data=buf_ttd.getvalue(), 
+                file_name=f"TTD_Transparan_{waktu_sekarang}.png", 
+                mime="image/png", 
+                type="primary", 
+                use_container_width=True
+            )
         
 # --- FOOTER APLIKASI ---
 st.markdown("---")
@@ -756,6 +759,7 @@ st.markdown(
     "</div>", 
     unsafe_allow_html=True
 )
+
 
 
 
