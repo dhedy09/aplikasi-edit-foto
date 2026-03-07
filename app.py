@@ -416,12 +416,21 @@ with tab6:
                     w_px, h_px = ukuran_px[item['uk']]
                     foto_crop = ImageOps.fit(item['img'], (w_px, h_px), method=Image.Resampling.LANCZOS)
                     
+                    # --- TAMBAHAN: MEMBUAT GARIS HITAM TIPIS (BORDER) ---
+                    # Kita gunakan ImageDraw untuk menggambar garis di sekeliling foto_crop
+                    draw_border = ImageDraw.Draw(foto_crop)
+                    # Menggambar persegi tanpa warna isi (fill=None) dengan garis tepi hitam (outline)
+                    # [0, 0, lebar-1, tinggi-1] adalah koordinat pojok foto
+                    draw_border.rectangle([0, 0, w_px - 1, h_px - 1], outline="black", width=1)
+                    # ----------------------------------------------------
+
                     if item['uk'] == "10R":
                         k10 = Image.new("RGB", (w_px + margin*2, h_px + margin*2), "white")
                         k10.paste(foto_crop, (margin, margin))
                         halaman_cetak.append(k10)
                         continue
 
+                    # (Sisa kode penempatan x, y tetap sama seperti sebelumnya...)
                     if x + w_px + margin > a4_w:
                         x = margin
                         y += tinggi_baris + margin
@@ -445,6 +454,7 @@ with tab6:
                 
                 st.success(f"PDF Berhasil dibuat dengan {len(halaman_cetak)} halaman!")
                 st.download_button("📥 Download PDF Siap Print", buf_pdf.getvalue(), "cetak_campuran.pdf", "application/pdf", use_container_width=True)
+
 
 
 
