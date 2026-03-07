@@ -68,7 +68,7 @@ with st.sidebar:
 # --- NAVIGASI MODERN (TABS) ---
 st.title("✨ STUDIO FOTO MAMAYO")
 # tab1, tab2, tab3, tab4, tab5 = st.tabs(["✂️ Hapus Latar", "🗜️ Kompres", "🎨 Warna", "🔄 Format", "🪄 Filter"])
-tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs(["✂️ Latar", "🗜️ Kompres", "🎨 Warna", "🔄 Format", "🪄 Filter", "🖨️ Cetak Foto"])
+tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs(["✂️ Latar", "🗜️ Kompres", "🎨 Warna", "🔄 Format", "🪄 Filter", "🖨️ Cetak Foto", "📑 Lampiran SPJ"])
 
 # ==========================================
 # TAB 1: HAPUS LATAR (AI)
@@ -497,6 +497,100 @@ with tab6:
                     use_container_width=True
                 )
 
+# ==========================================
+# TAB 7: PEMBUAT LAMPIRAN SPJ / DOKUMENTASI
+# ==========================================
+with tab7:
+    st.write("Susun foto dokumentasi kegiatan otomatis untuk lampiran SPJ atau Laporan (Mendukung Kertas F4).")
+    
+    spj_files = st.file_uploader("Unggah Banyak Foto Kegiatan sekaligus...", type=["jpg", "png", "jpeg"], accept_multiple_files=True, key="upload_spj")
+    
+    if spj_files:
+        st.info(f"✅ {len(spj_files)} foto siap disusun.")
+        
+        # Pengaturan Layout SPJ
+        col_kertas, col_layout = st.columns(2)
+        with col_kertas:
+            jenis_kertas = st.selectbox("Ukuran Kertas Kertas:", ["A4 (21 x 29.7 cm)", "F4 (21 x 33 cm)"])
+        with col_layout:
+            jenis_layout = st.selectbox("Susunan Foto per Halaman:", ["2 Foto (Atas-Bawah)", "4 Foto (Grid 2x2)", "6 Foto (Grid 3x2)"])
+            
+        if st.button("📑 Buat Lampiran PDF", type="primary", use_container_width=True):
+            with st.spinner("Menyusun foto ke halaman lampiran..."):
+                
+                # 1. Tentukan ukuran kertas dalam Pixel (Resolusi Tinggi 300 DPI)
+                if "A4" in jenis_kertas:
+                    w_kertas, h_kertas = 2480, 3508
+                else: # F4 (21 cm x 33 cm) -> dikonversi ke pixel 300 DPI
+                    w_kertas, h_kertas = 2480, 3898 
+                    
+                # 2. Tentukan jumlah baris dan kolom berdasarkan pilihan
+                if "2 Foto" in jenis_layout:
+                    cols, rows = 1, 2
+                elif "4 Foto" in jenis_layout:
+                    cols, rows = 2, 2
+                else: # 6 Foto
+                    cols, rows = 2, 3
+                    
+                # 3. Pengaturan Ruang & Margin
+                margin_x = 150 # Margin kiri-kanan kertas
+                margin_y = 200 # Margin atas-bawah (sengaja agak besar untuk tempat mengetik kop/judul)
+                jarak_x = 80   # Jarak antar foto secara horizontal
+                jarak_y = 120  # Jarak antar foto secara vertikal
+                
+                # Hitung ukuran kotak / sel setiap foto
+                avail_w = w_kertas - (margin_x * 2) - (jarak_x * (cols - 1))
+                avail_h = h_kertas - (margin_y * 2) - (jarak_y * (rows - 1))
+                cell_w = avail_w // cols
+                cell_h = avail_h // rows
+                
+                halaman_spj = []
+                kanvas_spj = Image.new("RGB", (w_kertas, h_kertas), "white")
+                
+                idx_foto = 0
+                for file in spj_files:
+                    img_kegiatan = Image.open(file).convert("RGB")
+                    
+                    # Potong tengah agar foto tidak gepeng dan pas mengisi kotak
+                    foto_kegiatan = ImageOps.fit(img_kegiatan, (cell_w, cell_h), method=Image.Resampling.LANCZOS, centering=(0.5, 0.5))
+                    
+                    # Beri bingkai garis hitam tipis agar elegan
+                    draw = ImageDraw.Draw(foto_kegiatan)
+                    draw.rectangle([0, 0, cell_w-1, cell_h-1], outline="black", width=4)
+                    
+                    # Hitung koordinat x dan y untuk penempatan di kanvas
+                    pos_c = idx_foto % cols
+                    pos_r = (idx_foto // cols) % rows
+                    
+                    x = margin_x + pos_c * (cell_w + jarak_x)
+                    y = margin_y + pos_r * (cell_h + jarak_y)
+                    
+                    # Tempel foto ke kanvas kertas
+                    kanvas_spj.paste(foto_kegiatan, (x, y))
+                    
+                    idx_foto += 1
+                    
+                    # Jika halaman penuh (misal 4 dari 4) atau jika ini adalah foto terakhir
+                    if idx_foto % (cols * rows) == 0 or file == spj_files[-1]:
+                        halaman_spj.append(kanvas_spj)
+                        # Buat kertas kosong baru jika masih ada foto tersisa
+                        if file != spj_files[-1]:
+                            kanvas_spj = Image.new("RGB", (w_kertas, h_kertas), "white")
+                            
+                # Simpan Hasil ke PDF
+                buf_pdf_spj = io.BytesIO()
+                if halaman_spj:
+                    halaman_spj[0].save(buf_pdf_spj, format="PDF", save_all=True, append_images=halaman_spj[1:])
+                    
+                    st.success(f"🎉 Selesai! Berhasil membuat dokumen berisi {len(halaman_spj)} halaman.")
+                    st.download_button(
+                        label=f"📥 Download Lampiran SPJ ({jenis_kertas})", 
+                        data=buf_pdf_spj.getvalue(), 
+                        file_name=f"Lampiran_Dokumentasi_{jenis_kertas[:2]}.pdf", 
+                        mime="application/pdf", 
+                        type="primary", 
+                        use_container_width=True
+                    )
 
 
 
