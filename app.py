@@ -400,8 +400,17 @@ with tab6:
 
         st.markdown("---")
 
-        # 3. Proses Gabungkan ke PDF
-        if st.button("🖨️ PROSES CETAK SEMUA (PDF)", type="primary", use_container_width=True):
+        # --- FITUR BARU: PENGATURAN KUSTOMISASI KERTAS ---
+        st.markdown("### ⚙️ Pengaturan Kertas & Jarak")
+        st.info("💡 Sesuaikan nilai ini jika jarak antar foto terlalu sempit atau terlalu lebar.")
+        col_margin, col_jarak = st.columns(2)
+        with col_margin:
+            margin_tepi = st.number_input("Margin Tepi Kertas (pixel)", min_value=0, max_value=200, value=40, help="Jarak aman dari batas ujung kertas (agar tidak terpotong printer).")
+        with col_jarak:
+            jarak_foto = st.number_input("Jarak Antar Foto (pixel)", min_value=0, max_value=150, value=30, help="Ruang putih di antara foto untuk tempat menggunting.")
+
+        # 3. Proses Gabungkan ke PDF & Preview
+        if st.button("🖨️ PROSES & LIHAT PRATINJAU", type="primary", use_container_width=True):
             with st.spinner(f"Menyusun {total_cetak} foto ke kertas A4..."):
                 dpi = 300
                 ukuran_px = {
@@ -417,20 +426,14 @@ with tab6:
                     for _ in range(item['jumlah']):
                         semua_pesanan.append({"img": item['image'], "uk": item['ukuran']})
                 
-                # Sortir ukuran besar ke kecil agar kertas efisien
+                # Sortir ukuran besar ke kecil agar susunan efisien
                 semua_pesanan.sort(key=lambda x: ukuran_px[x['uk']][0] * ukuran_px[x['uk']][1], reverse=True)
                 
                 a4_w, a4_h = 2480, 3508
-                
-                # --- OPTIMASI PENGHEMATAN KERTAS ---
-                margin_tepi = 40  # Jarak aman dari tepi printer (sekitar 3,4 mm)
-                jarak_foto = 25   # Jarak super rapat antar foto untuk gunting (sekitar 1,2 mm)
-                # -----------------------------------
-                
                 halaman_cetak = []
                 kanvas = Image.new("RGB", (a4_w, a4_h), "white")
                 
-                # Mulai dari pojok kiri atas (sesuai margin tepi)
+                # Menggunakan variabel kustom dari user
                 x, y, tinggi_baris = margin_tepi, margin_tepi, 0
                 
                 for item in semua_pesanan:
@@ -447,22 +450,20 @@ with tab6:
                         halaman_cetak.append(k10)
                         continue
 
-                    # Cek apakah muat ke kanan (memperhitungkan margin tepi kanan kertas)
+                    # Cek apakah muat ke kanan
                     if x + w_px + margin_tepi > a4_w:
-                        x = margin_tepi  # Kembali ke kiri
-                        y += tinggi_baris + jarak_foto  # Turun ke baris baru, jaraknya dirapatkan
+                        x = margin_tepi
+                        y += tinggi_baris + jarak_foto
                         tinggi_baris = 0
                         
-                    # Cek apakah muat ke bawah (memperhitungkan margin tepi bawah kertas)
+                    # Cek apakah muat ke bawah
                     if y + h_px + margin_tepi > a4_h:
-                        halaman_cetak.append(kanvas) # Simpan kertas yang sudah penuh
-                        kanvas = Image.new("RGB", (a4_w, a4_h), "white") # Ambil kertas baru
+                        halaman_cetak.append(kanvas)
+                        kanvas = Image.new("RGB", (a4_w, a4_h), "white")
                         x, y, tinggi_baris = margin_tepi, margin_tepi, 0
                         
                     # Tempel foto
                     kanvas.paste(foto_crop, (x, y))
-                    
-                    # Geser x untuk foto berikutnya dengan jarak yang sangat rapat
                     x += w_px + jarak_foto
                     tinggi_baris = max(tinggi_baris, h_px)
                 
@@ -470,12 +471,32 @@ with tab6:
                 if kanvas.getbbox():
                     halaman_cetak.append(kanvas)
                 
-                # Simpan PDF
+                # Simpan PDF ke memory
                 buf_pdf = io.BytesIO()
                 halaman_cetak[0].save(buf_pdf, format="PDF", save_all=True, append_images=halaman_cetak[1:])
                 
                 st.success(f"🎉 Selesai! Menggunakan {len(halaman_cetak)} halaman kertas A4.")
-                st.download_button("📥 Download File PDF (Siap Print)", buf_pdf.getvalue(), "cetak_massal_multatuli.pdf", "application/pdf", type="primary", use_container_width=True)
+
+                # --- FITUR BARU: TAMPILKAN PRATINJAU ---
+                st.markdown("### 👁️ Pratinjau Hasil Cetak")
+                # Jika halamannya banyak, kita tampilkan dalam kolom agar tidak memakan tempat ke bawah
+                cols_preview = st.columns(min(len(halaman_cetak), 3)) 
+                for i, img_page in enumerate(halaman_cetak):
+                    # Menampilkan gambar per halaman
+                    cols_preview[i % 3].image(img_page, caption=f"Kertas {i+1}", use_container_width=True)
+                
+                st.markdown("---")
+                
+                # Tombol Download
+                st.download_button(
+                    label="📥 Download File PDF (Siap Print)", 
+                    data=buf_pdf.getvalue(), 
+                    file_name="cetak_massal_multatuli.pdf", 
+                    mime="application/pdf", 
+                    type="primary", 
+                    use_container_width=True
+                )
+
 
 
 
