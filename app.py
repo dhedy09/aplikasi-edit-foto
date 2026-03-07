@@ -424,7 +424,7 @@ with tab6:
                 
                 # --- OPTIMASI PENGHEMATAN KERTAS ---
                 margin_tepi = 40  # Jarak aman dari tepi printer (sekitar 3,4 mm)
-                jarak_foto = 15   # Jarak super rapat antar foto untuk gunting (sekitar 1,2 mm)
+                jarak_foto = 23   # Jarak super rapat antar foto untuk gunting (sekitar 1,2 mm)
                 # -----------------------------------
                 
                 halaman_cetak = []
@@ -476,6 +476,7 @@ with tab6:
                 
                 st.success(f"🎉 Selesai! Menggunakan {len(halaman_cetak)} halaman kertas A4.")
                 st.download_button("📥 Download File PDF (Siap Print)", buf_pdf.getvalue(), "cetak_massal_multatuli.pdf", "application/pdf", type="primary", use_container_width=True)
+
 
 
 
