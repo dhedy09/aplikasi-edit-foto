@@ -66,7 +66,7 @@ with st.sidebar:
         st.rerun()
 
 # --- NAVIGASI MODERN (TABS) ---
-st.title("✨ Studio Multatuli AI")
+st.title("✨ STUDIO FOTO MAMAYO")
 tab1, tab2, tab3, tab4, tab5 = st.tabs(["✂️ Hapus Latar", "🗜️ Kompres", "🎨 Warna", "🔄 Format", "🪄 Filter"])
 
 # ==========================================
@@ -335,6 +335,7 @@ with tab5:
                     type="primary",
                     use_container_width=True
                 )
+
 
 
 
