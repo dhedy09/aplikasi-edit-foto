@@ -338,45 +338,57 @@ with tab5:
                 )
 
 # ==========================================
-# TAB 6: STUDIO CETAK FOTO (MIX & MATCH)
+# TAB 6: STUDIO CETAK MULTI-FOTO (KERANJANG)
 # ==========================================
 with tab6:
-    st.write("Cetak pasfoto dan ukuran studio (R) presisi tinggi. Hasil akhir berupa PDF siap print (Kertas A4).")
-    
-    cetak_file = st.file_uploader("Unggah foto yang akan dicetak...", type=["jpg", "png", "jpeg"], key="upload_cetak")
-    
-    if cetak_file:
-        img_cetak = Image.open(cetak_file).convert("RGB")
-        st.image(img_cetak, caption="Foto Asli", width=250)
+    st.write("Tambahkan berbagai foto dan ukuran ke antrean, lalu cetak sekaligus dalam satu kertas A4.")
+
+    # Inisialisasi keranjang cetak jika belum ada
+    if "keranjang_cetak" not in st.session_state:
+        st.session_state.keranjang_cetak = []
+
+    # 1. Bagian Input Foto & Ukuran
+    with st.expander("➕ Tambah Foto ke Antrean Cetak", expanded=True):
+        col_up, col_set = st.columns([1, 1])
         
-        st.markdown("### 🎛️ Atur Jumlah Cetakan")
-        st.info("💡 Isi angka 0 jika tidak ingin mencetak ukuran tersebut.")
+        with col_up:
+            foto_input = st.file_uploader("Pilih Foto...", type=["jpg", "png", "jpeg"], key="input_multi_cetak")
+            if foto_input:
+                st.image(foto_input, width=150)
         
-        # Kolom Input Jumlah
-        col_pas, col_r1, col_r2 = st.columns(3)
+        with col_set:
+            opsi_ukuran = ["2x3", "3x4", "4x6", "2R", "3R", "4R", "5R", "6R", "8R", "10R"]
+            pilih_uk = st.selectbox("Ukuran:", opsi_ukuran)
+            pilih_jml = st.number_input("Jumlah Lembar:", min_value=1, max_value=50, value=2)
+            
+            if st.button("📥 Masukkan ke Keranjang"):
+                if foto_input:
+                    # Simpan data foto dan instruksi ke session state
+                    img_data = Image.open(foto_input).convert("RGB")
+                    st.session_state.keranjang_cetak.append({
+                        "image": img_data,
+                        "ukuran": pilih_uk,
+                        "jumlah": pilih_jml
+                    })
+                    st.success(f"Berhasil menambah {pilih_jml} lembar {pilih_uk}")
+                else:
+                    st.error("Silakan pilih foto dulu!")
+
+    # 2. Tampilkan Keranjang & Tombol Reset
+    if st.session_state.keranjang_cetak:
+        st.markdown("### 🛒 Daftar Antrean Cetak")
+        for i, item in enumerate(st.session_state.keranjang_cetak):
+            st.text(f"{i+1}. Foto {item['ukuran']} - {item['jumlah']} lembar")
         
-        with col_pas:
-            st.markdown("**Pasfoto**")
-            jml_2x3 = st.number_input("2x3 cm", min_value=0, max_value=50, value=0)
-            jml_3x4 = st.number_input("3x4 cm", min_value=0, max_value=50, value=0)
-            jml_4x6 = st.number_input("4x6 cm", min_value=0, max_value=50, value=0)
-            
-        with col_r1:
-            st.markdown("**Ukuran Studio R**")
-            jml_2r = st.number_input("2R (Dompet)", min_value=0, max_value=20, value=0)
-            jml_3r = st.number_input("3R", min_value=0, max_value=20, value=0)
-            jml_4r = st.number_input("4R", min_value=0, max_value=20, value=0)
-            jml_5r = st.number_input("5R", min_value=0, max_value=10, value=0)
-            
-        with col_r2:
-            st.markdown("**Cetak Besar**")
-            jml_6r = st.number_input("6R", min_value=0, max_value=10, value=0)
-            jml_8r = st.number_input("8R (A4 Penuh)", min_value=0, max_value=10, value=0)
-            jml_10r = st.number_input("10R (Ekstra Besar)", min_value=0, max_value=5, value=0)
-            
-        if st.button("🖨️ Buat File Cetak (PDF)", type="primary", use_container_width=True):
-            with st.spinner("Memotong dan menyusun foto ke kertas..."):
-                # Kamus Ukuran dalam Pixel (Resolusi 300 DPI)
+        if st.button("🗑️ Kosongkan Keranjang"):
+            st.session_state.keranjang_cetak = []
+            st.rerun()
+
+        st.markdown("---")
+
+        # 3. Proses Gabungkan ke PDF (Logika Sama dengan sebelumnya namun loop ke keranjang)
+        if st.button("🖨️ PROSES CETAK SEMUA (PDF)", type="primary", use_container_width=True):
+            with st.spinner("Menyusun semua foto ke kertas A4..."):
                 dpi = 300
                 ukuran_px = {
                     "2x3": (236, 354), "3x4": (354, 472), "4x6": (472, 709),
@@ -385,89 +397,55 @@ with tab6:
                     "10R": (3000, 3602)
                 }
                 
-                # Mengumpulkan semua pesanan
-                pesanan = []
-                pesanan.extend(["2x3"] * jml_2x3)
-                pesanan.extend(["3x4"] * jml_3x4)
-                pesanan.extend(["4x6"] * jml_4x6)
-                pesanan.extend(["2R"] * jml_2r)
-                pesanan.extend(["3R"] * jml_3r)
-                pesanan.extend(["4R"] * jml_4r)
-                pesanan.extend(["5R"] * jml_5r)
-                pesanan.extend(["6R"] * jml_6r)
-                pesanan.extend(["8R"] * jml_8r)
-                pesanan.extend(["10R"] * jml_10r)
+                # Mengumpulkan semua pesanan dari keranjang
+                semua_pesanan = []
+                for item in st.session_state.keranjang_cetak:
+                    for _ in range(item['jumlah']):
+                        semua_pesanan.append({"img": item['image'], "uk": item['ukuran']})
                 
-                if not pesanan:
-                    st.warning("⚠️ Anda belum memasukkan jumlah foto yang ingin dicetak!")
-                else:
-                    # Sortir dari ukuran terbesar ke terkecil agar susunannya rapi (Bin Packing sederhana)
-                    pesanan.sort(key=lambda x: ukuran_px[x][0] * ukuran_px[x][1], reverse=True)
+                # Sortir ukuran besar ke kecil
+                semua_pesanan.sort(key=lambda x: ukuran_px[x['uk']][0] * ukuran_px[x['uk']][1], reverse=True)
+                
+                a4_w, a4_h = 2480, 3508
+                margin = 50
+                halaman_cetak = []
+                kanvas = Image.new("RGB", (a4_w, a4_h), "white")
+                x, y, tinggi_baris = margin, margin, 0
+                
+                for item in semua_pesanan:
+                    w_px, h_px = ukuran_px[item['uk']]
+                    foto_crop = ImageOps.fit(item['img'], (w_px, h_px), method=Image.Resampling.LANCZOS)
                     
-                    # Ukuran Kertas A4 dalam pixel (300 DPI)
-                    a4_w, a4_h = 2480, 3508
-                    margin = 50 # Jarak antar foto untuk gunting
-                    
-                    halaman_cetak = []
-                    kanvas_saat_ini = Image.new("RGB", (a4_w, a4_h), "white")
-                    x, y = margin, margin
-                    tinggi_baris = 0
-                    
-                    for nama_ukuran in pesanan:
-                        w_px, h_px = ukuran_px[nama_ukuran]
+                    if item['uk'] == "10R":
+                        k10 = Image.new("RGB", (w_px + margin*2, h_px + margin*2), "white")
+                        k10.paste(foto_crop, (margin, margin))
+                        halaman_cetak.append(k10)
+                        continue
+
+                    if x + w_px + margin > a4_w:
+                        x = margin
+                        y += tinggi_baris + margin
+                        tinggi_baris = 0
                         
-                        # Potong cerdas (Center Crop anti-gepeng)
-                        foto_crop = ImageOps.fit(img_cetak, (w_px, h_px), method=Image.Resampling.LANCZOS, centering=(0.5, 0.5))
+                    if y + h_px + margin > a4_h:
+                        halaman_cetak.append(kanvas)
+                        kanvas = Image.new("RGB", (a4_w, a4_h), "white")
+                        x, y, tinggi_baris = margin, margin, 0
                         
-                        # 10R lebih besar dari A4, buatkan kanvas khusus
-                        if nama_ukuran == "10R":
-                            kanvas_10r = Image.new("RGB", (w_px + margin*2, h_px + margin*2), "white")
-                            kanvas_10r.paste(foto_crop, (margin, margin))
-                            halaman_cetak.append(kanvas_10r)
-                            continue
-                            
-                        # Cek apakah muat ke samping, kalau tidak turun baris
-                        if x + w_px + margin > a4_w:
-                            x = margin
-                            y += tinggi_baris + margin
-                            tinggi_baris = 0
-                            
-                        # Cek apakah muat ke bawah, kalau tidak buat kertas baru
-                        if y + h_px + margin > a4_h:
-                            halaman_cetak.append(kanvas_saat_ini)
-                            kanvas_saat_ini = Image.new("RGB", (a4_w, a4_h), "white")
-                            x, y = margin, margin
-                            tinggi_baris = 0
-                            
-                        # Tempel foto ke kanvas
-                        kanvas_saat_ini.paste(foto_crop, (x, y))
-                        
-                        # Update posisi
-                        x += w_px + margin
-                        tinggi_baris = max(tinggi_baris, h_px)
-                        
-                    # Simpan sisa kanvas terakhir (jika ada isinya)
-                    if kanvas_saat_ini.getbbox():
-                        halaman_cetak.append(kanvas_saat_ini)
-                        
-                    # Proses menjadi 1 file PDF
-                    buf_pdf = io.BytesIO()
-                    if len(halaman_cetak) > 0:
-                        halaman_cetak[0].save(
-                            buf_pdf, format="PDF", save_all=True, append_images=halaman_cetak[1:]
-                        )
-                    
-                    st.success(f"🎉 Selesai! Menghasilkan {len(halaman_cetak)} lembar kertas.")
-                    
-                    st.download_button(
-                        label="📄 Download File Siap Print (.PDF)",
-                        data=buf_pdf.getvalue(),
-                        file_name="cetak_studio_multatuli.pdf",
-                        mime="application/pdf",
-                        type="primary",
-                        use_container_width=True
-                    )
-                    st.info("💡 **Tips Nge-Print:** Buka PDF-nya, tekan `Ctrl + P`, lalu pastikan pengaturan ukuran kertasnya **A4** dan skalanya **Actual Size (100%)** agar ukurannya akurat!")
+                    kanvas.paste(foto_crop, (x, y))
+                    x += w_px + margin
+                    tinggi_baris = max(tinggi_baris, h_px)
+                
+                if kanvas.getbbox():
+                    halaman_cetak.append(kanvas)
+                
+                # Simpan PDF
+                buf_pdf = io.BytesIO()
+                halaman_cetak[0].save(buf_pdf, format="PDF", save_all=True, append_images=halaman_cetak[1:])
+                
+                st.success(f"PDF Berhasil dibuat dengan {len(halaman_cetak)} halaman!")
+                st.download_button("📥 Download PDF Siap Print", buf_pdf.getvalue(), "cetak_campuran.pdf", "application/pdf", use_container_width=True)
+
 
 
 
