@@ -68,7 +68,7 @@ with st.sidebar:
 
 # Letakkan di baris paling atas setelah import
 st.set_page_config(
-    page_title="Studio Multatuli | Alat Foto & SPJ",
+    page_title="Studio Mamayo | Alat Foto & SPJ",
     page_icon="📸",
     layout="wide", # Menggunakan seluruh lebar layar komputer
     initial_sidebar_state="expanded"
@@ -96,8 +96,8 @@ st.markdown("""
 with st.sidebar:
     # Jika Anda punya file logo, bisa gunakan: st.image("logo_anda.png")
     # Untuk sementara kita pakai teks besar:
-    st.markdown("<h1 style='text-align: center;'>📸 Studio Multatuli</h1>", unsafe_allow_html=True)
-    st.markdown("<p style='text-align: center; color: gray;'>Pisau Lipat Administrasi Digital</p>", unsafe_allow_html=True)
+    st.markdown("<h1 style='text-align: center;'>📸 Studio Mamayo</h1>", unsafe_allow_html=True)
+    st.markdown("<p style='text-align: center; color: gray;'>Administrasi Digital</p>", unsafe_allow_html=True)
     
     st.markdown("---")
     st.markdown("### 📌 Tentang Aplikasi")
@@ -755,6 +755,7 @@ st.markdown(
     "</div>", 
     unsafe_allow_html=True
 )
+
 
 
 
