@@ -1,21 +1,29 @@
 import streamlit as st
-from rembg import remove
+from rembg import remove, new_session
 from PIL import Image, ImageFilter
 import io
 
 # Konfigurasi Halaman Web
 st.set_page_config(page_title="Studio Foto AI Pro", layout="centered")
-st.title("✨ Studio Foto AI Pro (Stable & Clean)")
-st.write("Versi ringan, stabil, dan bebas error log!")
+st.title("✨ Studio Foto AI Pro (Portrait Edition)")
+st.write("Menggunakan AI Spesialis Manusia. Telinga & tangan lebih presisi!")
+
+# Memuat AI Khusus Manusia (Aman untuk RAM Streamlit)
+@st.cache_resource
+def get_human_model():
+    # Model ini dilatih khusus untuk anatomi manusia
+    return new_session("u2net_human_seg")
 
 # Fungsi pembantu untuk memproses gambar
 def process_remove_bg(image_input):
     img_byte = io.BytesIO()
     image_input.save(img_byte, format='PNG')
     
-    # Mematikan alpha_matting agar tepi potongan tajam dan tidak menyerap warna latar
+    # Mematikan alpha_matting agar tidak bocor warna merah, 
+    # dan menggunakan model spesialis manusia
     res_bytes = remove(
         img_byte.getvalue(),
+        session=get_human_model(),
         alpha_matting=False 
     )
     return Image.open(io.BytesIO(res_bytes)).convert("RGBA")
@@ -32,7 +40,6 @@ with tab1:
     
     if file_tab1:
         img1 = Image.open(file_tab1).convert("RGBA")
-        # Menggunakan kode baru width="stretch" sesuai saran log Streamlit
         st.image(img1, caption="Foto Asli", width="stretch")
         
         st.markdown("---")
@@ -47,7 +54,7 @@ with tab1:
             bg_image_file = st.file_uploader("Unggah Gambar Pemandangan/Latar...", type=["jpg", "png", "jpeg"], key="bg_file")
         
         if st.button("🪄 Proses Ganti Latar", type="primary"):
-            with st.spinner("AI sedang memotong dengan hati-hati..."):
+            with st.spinner("AI Spesialis Manusia sedang bekerja..."):
                 fg = process_remove_bg(img1)
                 
                 final_img1 = fg # Default Transparan
@@ -63,12 +70,11 @@ with tab1:
                     final_img1 = bg_img
                     
                 st.success("Selesai!")
-                # Menggunakan kode baru width="stretch"
-                st.image(final_img1, caption="Hasil Akhir", width="stretch")
+                st.image(final_img1, caption="Hasil Akhir (Telinga Lebih Tajam)", width="stretch")
                 
                 buf1 = io.BytesIO()
                 final_img1.save(buf1, format="PNG")
-                st.download_button("📥 Download Hasil", data=buf1.getvalue(), file_name="hasil_edit_stabil.png", mime="image/png")
+                st.download_button("📥 Download Hasil", data=buf1.getvalue(), file_name="hasil_edit_portrait.png", mime="image/png")
 
 # ==========================================
 # TAB 2: EFEK BLUR (BOKEH)
@@ -79,7 +85,6 @@ with tab2:
     
     if file_tab2:
         img2 = Image.open(file_tab2).convert("RGBA")
-        # Menggunakan kode baru width="stretch"
         st.image(img2, caption="Foto Asli", width="stretch")
         
         blur_amount = st.slider("Tingkat Keburaman (Blur)", min_value=1, max_value=20, value=7)
@@ -91,7 +96,6 @@ with tab2:
                 bg_blurred.paste(fg2, (0, 0), fg2)
                 
                 st.success("Selesai!")
-                # Menggunakan kode baru width="stretch"
                 st.image(bg_blurred, caption="Hasil Blur", width="stretch")
                 
                 buf2 = io.BytesIO()
