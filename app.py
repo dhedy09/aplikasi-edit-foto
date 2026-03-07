@@ -1,6 +1,7 @@
 import streamlit as st
 import requests
-from PIL import Image, ImageOps, ImageEnhance
+from PIL import Image, ImageOps, ImageEnhance, ImageFilter, ImageDraw, ImageFont
+from datetime import datetime
 import io
 
 # --- KONFIGURASI HALAMAN ---
@@ -59,8 +60,7 @@ with st.sidebar:
 
 # --- NAVIGASI MODERN (TABS) ---
 st.title("✨ Studio Multatuli AI")
-#tab1, tab2, tab3 = st.tabs(["✂️ AI Background Remover", "🗜️ Smart Image Compressor", "🎨 Editor Warna & Cahaya"])
-tab1, tab2, tab3, tab4 = st.tabs(["✂️ AI Background", "🗜️ Compressor", "🎨 Warna & Cahaya", "🔄 Ubah Format"])
+tab1, tab2, tab3, tab4, tab5 = st.tabs(["✂️ Hapus Latar", "🗜️ Kompres", "🎨 Warna", "🔄 Format", "📍 Teks & Waktu"])
 
 # ==========================================
 # TAB 1: HAPUS LATAR (AI)
@@ -276,3 +276,88 @@ with tab4:
                     mime=f"image/{ekstensi}",
                     type="primary"
                 )
+
+# ==========================================
+# TAB 5: STEMPEL ESTETIK (TEKS, LOKASI & WAKTU)
+# ==========================================
+with tab5:
+    st.write("Tambahkan cap lokasi, momen, dan waktu ala Instagram Story.")
+    
+    watermark_file = st.file_uploader("Unggah foto...", type=["jpg", "png", "jpeg"], key="upload_watermark")
+    
+    if watermark_file:
+        img_wm = Image.open(watermark_file).convert("RGBA") # Wajib RGBA untuk efek transparan
+        
+        # --- Pengaturan Pengguna ---
+        col_teks, col_pos = st.columns(2)
+        with col_teks:
+            teks_lokasi = st.text_input("📍 Ketik Lokasi / Momen:", "Bandar Lampung, Indonesia")
+            tambah_waktu = st.checkbox("🕰️ Tambahkan Waktu Saat Ini?", value=True)
+        with col_pos:
+            posisi = st.selectbox("Letak Stempel:", ["Kanan Bawah", "Kiri Bawah", "Kiri Atas", "Kanan Atas"])
+            
+        if st.button("🪄 Pasang Stempel", type="primary", use_container_width=True):
+            with st.spinner("Menulis di atas foto..."):
+                # Siapkan Teks Akhir
+                teks_akhir = teks_lokasi
+                if tambah_waktu:
+                    waktu_sekarang = datetime.now().strftime("%d %b %Y - %H:%M")
+                    teks_akhir = f"{teks_lokasi}\n{waktu_sekarang}" if teks_lokasi else waktu_sekarang
+                
+                # Buat layer transparan kosong seukuran foto asli
+                txt_layer = Image.new("RGBA", img_wm.size, (255, 255, 255, 0))
+                draw = ImageDraw.Draw(txt_layer)
+                
+                # Ukuran font dinamis (menyesuaikan besar foto)
+                ukuran_font = max(int(img_wm.width * 0.03), 15)
+                
+                # Coba pakai Roboto jika ada di folder, jika tidak pakai font bawaan
+                try:
+                    font = ImageFont.truetype("Roboto-Regular.ttf", ukuran_font)
+                except IOError:
+                    font = ImageFont.load_default()
+                    
+                # Hitung ukuran kotak teks
+                bbox = draw.multiline_textbbox((0, 0), teks_akhir, font=font)
+                teks_lebar = bbox[2] - bbox[0]
+                teks_tinggi = bbox[3] - bbox[1]
+                
+                # Margin & Padding (Jarak teks ke tepi kotak)
+                padding = 20
+                margin = 30
+                
+                # Tentukan Koordinat X dan Y berdasarkan pilihan posisi
+                if posisi == "Kiri Atas":
+                    x, y = margin, margin
+                elif posisi == "Kanan Atas":
+                    x, y = img_wm.width - teks_lebar - margin - (padding*2), margin
+                elif posisi == "Kiri Bawah":
+                    x, y = margin, img_wm.height - teks_tinggi - margin - (padding*2)
+                else: # Kanan Bawah (Default)
+                    x, y = img_wm.width - teks_lebar - margin - (padding*2), img_wm.height - teks_tinggi - margin - (padding*2)
+                
+                # Gambar Kotak Hitam Semi-Transparan (Alpha 120 dari 255)
+                kotak_bg = [x, y, x + teks_lebar + (padding*2), y + teks_tinggi + (padding*2)]
+                draw.rectangle(kotak_bg, fill=(0, 0, 0, 120))
+                
+                # Tulis Teks Berwarna Putih di atas kotak
+                draw.multiline_text((x + padding, y + padding), teks_akhir, font=font, fill=(255, 255, 255, 255))
+                
+                # Gabungkan foto asli dengan layer teks
+                hasil_akhir = Image.alpha_composite(img_wm, txt_layer)
+                hasil_akhir = hasil_akhir.convert("RGB") # Kembalikan ke RGB agar bisa di-download sbg JPG
+                
+                st.markdown("---")
+                st.image(hasil_akhir, caption="✨ Hasil Stempel Estetik", use_container_width=True)
+                
+                # Tombol Download
+                buf_wm = io.BytesIO()
+                hasil_akhir.save(buf_wm, format="JPEG", quality=95)
+                st.download_button(
+                    label="📥 Download Foto",
+                    data=buf_wm.getvalue(),
+                    file_name="foto_stempel.jpg",
+                    mime="image/jpeg",
+                    type="primary"
+                )
+
