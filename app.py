@@ -4,22 +4,44 @@ from PIL import Image, ImageFilter
 import io
 
 # Konfigurasi Halaman Web
-st.set_page_config(page_title="Studio Foto AI Pro", layout="centered")
-st.title("✨ Studio Foto AI Pro")
-st.write("Aplikasi edit foto cerdas. Pilih menu di bawah ini!")
+st.set_page_config(page_title="Studio Foto AI Pro (Tepi Halus)", layout="centered")
+st.title("✨ Studio Foto AI Pro v2")
+st.write("Aplikasi edit foto cerdas dengan perbaikan tepi. Pilih menu di bawah ini!")
 
 # --- MEMBUAT TAB MENU ---
 tab1, tab2 = st.tabs(["🎨 Ganti Latar", "💧 Efek Blur (Portrait)"])
+
+# Fungsi pembantu untuk memproses remove bg dengan model lebih baik dan matting
+def process_remove_bg(image_input):
+    """
+    Memproses gambar dengan model AI isnet-general-use dan fitur Alpha Matting
+    untuk hasil tepi yang lebih detail pada potret manusia.
+    """
+    img_byte = io.BytesIO()
+    image_input.save(img_byte, format='PNG')
+    
+    # Menambahkan parameter matting untuk detail tepi
+    res_bytes = remove(
+        img_byte.getvalue(),
+        alpha_matting=True,
+        alpha_matting_foreground_threshold=240,
+        alpha_matting_background_threshold=10,
+        alpha_matting_erode_size=10,
+        model='isnet-general-use' # Menggunakan model yang lebih baik untuk potret
+    )
+    fg_image = Image.open(io.BytesIO(res_bytes)).convert("RGBA")
+    return fg_image
 
 # ==========================================
 # TAB 1: GANTI LATAR (WARNA & GAMBAR)
 # ==========================================
 with tab1:
     st.header("Hapus & Ganti Latar Belakang")
+    st.info("Catatan: Kami sekarang menggunakan model AI yang lebih baik untuk detail tepi pada potret manusia.")
     file_tab1 = st.file_uploader("1. Unggah Foto Utama...", type=["jpg", "png", "jpeg"], key="file1")
     
     if file_tab1:
-        img1 = Image.open(file_tab1)
+        img1 = Image.open(file_tab1).convert("RGBA")
         st.image(img1, caption="Foto Asli", use_container_width=True)
         
         st.markdown("---")
@@ -37,12 +59,9 @@ with tab1:
         
         # Tombol Eksekusi
         if st.button("🪄 Proses Ganti Latar", type="primary"):
-            with st.spinner("AI sedang bekerja..."):
-                # Proses potong objek dengan AI Rembg
-                img_byte = io.BytesIO()
-                img1.save(img_byte, format='PNG')
-                res_bytes = remove(img_byte.getvalue())
-                fg = Image.open(io.BytesIO(res_bytes)).convert("RGBA")
+            with st.spinner("AI sedang bekerja memperhalus tepi..."):
+                # Panggil fungsi pembantu baru
+                fg = process_remove_bg(img1)
                 
                 final_img1 = fg # Default jika memilih transparan
                 
@@ -57,12 +76,12 @@ with tab1:
                     final_img1 = bg_img
                     
                 st.success("Selesai!")
-                st.image(final_img1, caption="Hasil Akhir", use_container_width=True)
+                st.image(final_img1, caption="Hasil Akhir (Tepi Halus)", use_container_width=True)
                 
                 # Siapkan file untuk download
                 buf1 = io.BytesIO()
                 final_img1.save(buf1, format="PNG")
-                st.download_button("📥 Download Hasil", data=buf1.getvalue(), file_name="hasil_latar.png", mime="image/png")
+                st.download_button("📥 Download Hasil", data=buf1.getvalue(), file_name="hasil_latar_halus.png", mime="image/png")
 
 # ==========================================
 # TAB 2: EFEK BLUR (BOKEH)
@@ -79,22 +98,19 @@ with tab2:
         blur_amount = st.slider("Tingkat Keburaman (Blur)", min_value=1, max_value=20, value=7)
         
         if st.button("💧 Terapkan Efek Blur", type="primary"):
-            with st.spinner("Menerapkan efek lensa DSLR..."):
+            with st.spinner("Menerapkan efek lensa DSLR dengan tepi halus..."):
                 # 1. Buat versi foto yang diblur seluruhnya
                 bg_blurred = img2.filter(ImageFilter.GaussianBlur(blur_amount))
                 
-                # 2. Potong objek utamanya saja menggunakan AI Rembg
-                img_byte2 = io.BytesIO()
-                img2.save(img_byte2, format='PNG')
-                res_bytes2 = remove(img_byte2.getvalue())
-                fg2 = Image.open(io.BytesIO(res_bytes2)).convert("RGBA")
+                # 2. Potong objek utamanya saja menggunakan fungsi pembantu baru (tepi halus)
+                fg2 = process_remove_bg(img2)
                 
                 # 3. Tempel objek utama (yang tajam) di atas foto yang diblur
                 bg_blurred.paste(fg2, (0, 0), fg2)
                 
                 st.success("Selesai!")
-                st.image(bg_blurred, caption="Hasil Blur", use_container_width=True)
+                st.image(bg_blurred, caption="Hasil Blur (Tepi Halus)", use_container_width=True)
                 
                 buf2 = io.BytesIO()
                 bg_blurred.save(buf2, format="PNG")
-                st.download_button("📥 Download Hasil Blur", data=buf2.getvalue(), file_name="hasil_blur.png", mime="image/png")
+                st.download_button("📥 Download Hasil Blur", data=buf2.getvalue(), file_name="hasil_blur_halus.png", mime="image/png")
