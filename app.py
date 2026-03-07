@@ -508,12 +508,20 @@ with tab7:
     if spj_files:
         st.info(f"✅ {len(spj_files)} foto siap disusun.")
         
-        # --- INPUT JUDUL & PENGATURAN ---
+        # --- INPUT JUDUL & PENGATURAN MARGIN ---
         judul_lampiran = st.text_input("Judul Lampiran (Opsional):", "DOKUMENTASI KEGIATAN")
         
+        st.markdown("**⚙️ Pengaturan Jarak (Margin)**")
+        col_jarak1, col_jarak2 = st.columns(2)
+        with col_jarak1:
+            posisi_y_teks = st.number_input("Jarak Judul dari Atas (pixel)", min_value=0, max_value=1000, value=150, step=10, help="Semakin besar angkanya, judul semakin turun ke bawah.")
+        with col_jarak2:
+            margin_y = st.number_input("Jarak Foto dari Atas (pixel)", min_value=0, max_value=1500, value=350, step=10, help="Pastikan angka ini lebih besar dari Jarak Judul agar foto tidak menabrak teks judul.")
+        
+        st.markdown("**📄 Pengaturan Kertas & Layout**")
         col_kertas, col_layout = st.columns(2)
         with col_kertas:
-            jenis_kertas = st.selectbox("Ukuran Kertas Kertas:", ["A4 (21 x 29.7 cm)", "F4 (21 x 33 cm)"])
+            jenis_kertas = st.selectbox("Ukuran Kertas:", ["A4 (21 x 29.7 cm)", "F4 (21 x 33 cm)"])
         with col_layout:
             jenis_layout = st.selectbox("Susunan Foto per Halaman:", ["2 Foto (Atas-Bawah)", "4 Foto (Grid 2x2)", "6 Foto (Grid 3x2)"])
             
@@ -536,7 +544,7 @@ with tab7:
                     
                 # 3. Pengaturan Ruang & Margin
                 margin_x = 150 # Margin kiri-kanan kertas
-                margin_y = 300 # Margin atas-bawah (Diperbesar untuk ruang judul)
+                # margin_y sudah diambil dari input pengguna di atas
                 jarak_x = 80   # Jarak horizontal antar foto
                 jarak_y = 120  # Jarak vertikal antar foto
                 
@@ -547,12 +555,10 @@ with tab7:
                 
                 # Siapkan Font untuk Judul
                 try:
-                    # Mencoba pakai font Roboto ukuran besar (karena resolusi kanvas 300 DPI sangat besar)
                     font_judul = ImageFont.truetype("Roboto-Regular.ttf", 80)
                 except:
-                    # Jika font tidak ada, pakai bawaan sistem (mungkin terlihat agak kecil di 300 DPI)
                     try:
-                        font_judul = ImageFont.load_default(size=80) # Untuk versi Pillow terbaru
+                        font_judul = ImageFont.load_default(size=80)
                     except:
                         font_judul = ImageFont.load_default()
                 
@@ -585,13 +591,11 @@ with tab7:
                         # Tulis Judul di bagian atas halaman ini sebelum disimpan
                         if judul_lampiran:
                             draw_kanvas = ImageDraw.Draw(kanvas_spj)
-                            # Mencari posisi tengah (center) untuk teks judul
                             bbox_teks = draw_kanvas.textbbox((0, 0), judul_lampiran.upper(), font=font_judul)
                             lebar_teks = bbox_teks[2] - bbox_teks[0]
                             posisi_x_teks = (w_kertas - lebar_teks) / 2
-                            posisi_y_teks = 100 # Jarak judul dari ujung atas kertas
+                            # posisi_y_teks sudah diambil dari input pengguna di atas
                             
-                            # Tulis teks warna hitam
                             draw_kanvas.text((posisi_x_teks, posisi_y_teks), judul_lampiran.upper(), fill="black", font=font_judul)
                             
                         # Simpan halaman yang sudah jadi
