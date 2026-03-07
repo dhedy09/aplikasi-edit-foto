@@ -1,29 +1,22 @@
 import streamlit as st
-from rembg import remove, new_session
+from rembg import remove
 from PIL import Image, ImageFilter
 import io
 
 # Konfigurasi Halaman Web
 st.set_page_config(page_title="Studio Foto AI Pro", layout="centered")
-st.title("✨ Studio Foto AI Pro (Ultimate)")
-st.write("Versi lengkap dengan Fitur Tab, Efek Blur, dan Potongan Presisi Tinggi!")
-
-# Memuat "Otak" AI secara efisien
-@st.cache_resource
-def get_ai_model():
-    # Menggunakan model isnet-general-use yang dirancang khusus untuk anatomi tubuh manusia
-    return new_session("isnet-general-use")
+st.title("✨ Studio Foto AI Pro (Stable)")
+st.write("Versi ringan dan stabil. Potongan tetap tajam!")
 
 # Fungsi pembantu untuk memproses gambar
 def process_remove_bg(image_input):
     img_byte = io.BytesIO()
     image_input.save(img_byte, format='PNG')
     
-    # Jalankan AI tanpa fitur matting tambahan agar potongan tetap tajam (tidak blur kemerahan)
-    # Model isnet sudah cukup pintar untuk mempertahankan tangan dan telinga
+    # Menggunakan model bawaan yang ramah memori server gratis
+    # Fitur matting DIMATIKAN agar tidak ada efek blur kemerahan pada tepi
     res_bytes = remove(
         img_byte.getvalue(),
-        session=get_ai_model(),
         alpha_matting=False 
     )
     return Image.open(io.BytesIO(res_bytes)).convert("RGBA")
@@ -54,7 +47,7 @@ with tab1:
             bg_image_file = st.file_uploader("Unggah Gambar Pemandangan/Latar...", type=["jpg", "png", "jpeg"], key="bg_file")
         
         if st.button("🪄 Proses Ganti Latar", type="primary"):
-            with st.spinner("AI sedang memotong dengan presisi tingkat tinggi..."):
+            with st.spinner("AI sedang memotong dengan hati-hati..."):
                 fg = process_remove_bg(img1)
                 
                 final_img1 = fg # Default Transparan
@@ -70,11 +63,11 @@ with tab1:
                     final_img1 = bg_img
                     
                 st.success("Selesai!")
-                st.image(final_img1, caption="Hasil Akhir (Tepi Tajam)", use_container_width=True)
+                st.image(final_img1, caption="Hasil Akhir", use_container_width=True)
                 
                 buf1 = io.BytesIO()
                 final_img1.save(buf1, format="PNG")
-                st.download_button("📥 Download Hasil", data=buf1.getvalue(), file_name="hasil_edit_lengkap.png", mime="image/png")
+                st.download_button("📥 Download Hasil", data=buf1.getvalue(), file_name="hasil_edit_stabil.png", mime="image/png")
 
 # ==========================================
 # TAB 2: EFEK BLUR (BOKEH)
