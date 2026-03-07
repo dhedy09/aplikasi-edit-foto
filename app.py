@@ -11,16 +11,30 @@ st.write("Powered by Remove.bg. Kualitas industri, hasil potongan super bersih!"
 # Ambil API Key dari Streamlit Secrets
 REMOVE_BG_API_KEY = st.secrets["REMOVE_BG_API_KEY"]
 
-# --- INISIALISASI SESSION STATE ---
-# Ini penting untuk menyimpan gambar sementara agar tidak buang-buang kuota API
+# --- INISIALISASI SESSION STATE (MEMORI) ---
 if 'fg_image' not in st.session_state:
     st.session_state.fg_image = None
 if 'last_uploaded_id' not in st.session_state:
     st.session_state.last_uploaded_id = None
 
-# --- FUNGSI INTI ---
+# --- FUNGSI MEMBERSIHKAN MEMORI ---
+def bersihkan_memori():
+    """Fungsi untuk menghapus cache gambar dari RAM Server"""
+    st.session_state.fg_image = None
+    st.session_state.last_uploaded_id = None
+
+# --- SIDEBAR: PENGATURAN SERVER ---
+with st.sidebar:
+    st.header("⚙️ Sistem & Memori")
+    st.write("Jika Anda sudah selesai mengedit, bersihkan memori agar aplikasi tetap cepat dan tidak membebani server (Cloud).")
+    
+    # Tombol ini akan memanggil fungsi bersihkan_memori() saat ditekan
+    if st.button("🗑️ Bersihkan Memori", use_container_width=True, type="secondary"):
+        bersihkan_memori()
+        st.success("Memori RAM server berhasil dikosongkan! 🚀")
+
+# --- FUNGSI INTI API ---
 def remove_bg_api(image_file):
-    """Fungsi untuk memanggil API remove.bg"""
     response = requests.post(
         'https://api.remove.bg/v1.0/removebg',
         files={'image_file': image_file},
@@ -37,9 +51,9 @@ def remove_bg_api(image_file):
 uploaded_file = st.file_uploader("Unggah foto utama...", type=["jpg", "png", "jpeg"])
 
 if uploaded_file:
-    # Cek apakah pengguna mengunggah foto baru. Jika ya, reset memori AI.
+    # Cek apakah pengguna mengunggah foto baru. Jika ya, reset memori otomatis untuk foto baru.
     if st.session_state.last_uploaded_id != uploaded_file.file_id:
-        st.session_state.fg_image = None
+        bersihkan_memori()
         st.session_state.last_uploaded_id = uploaded_file.file_id
 
     # Tampilkan Foto Asli
@@ -61,7 +75,6 @@ if uploaded_file:
         bg_image_file = st.file_uploader("Unggah Gambar Pemandangan...", type=["jpg", "png", "jpeg"])
         
     if st.button("🪄 Proses Foto Kualitas Ultra", type="primary"):
-        # Validasi: Jika pilih pemandangan tapi lupa upload
         if bg_type == "Gambar Pemandangan" and not bg_image_file:
             st.warning("⚠️ Harap unggah gambar pemandangan terlebih dahulu sebelum memproses!")
         else:
@@ -72,7 +85,6 @@ if uploaded_file:
                     result_bytes = remove_bg_api(uploaded_file)
                     
                     if result_bytes:
-                        # Simpan hasil potong ke memori aplikasi
                         st.session_state.fg_image = Image.open(io.BytesIO(result_bytes)).convert("RGBA")
             
             # LANGKAH 2: Terapkan Latar Belakang Baru
@@ -88,7 +100,6 @@ if uploaded_file:
                         
                     elif bg_type == "Gambar Pemandangan" and bg_image_file:
                         bg_img = Image.open(bg_image_file).convert("RGBA")
-                        # Gunakan ImageOps.fit agar gambar pemandangan proporsional (tidak gepeng)
                         bg_img = ImageOps.fit(bg_img, fg.size, method=Image.Resampling.LANCZOS)
                         bg_img.paste(fg, (0, 0), fg)
                         final_img = bg_img
@@ -101,4 +112,4 @@ if uploaded_file:
                 final_img.save(buf, format="PNG")
                 st.download_button("📥 Download Hasil HD", data=buf.getvalue(), file_name="hasil_edit_ultra.png", mime="image/png")
 
-st.info("💡 **Catatan Pintar:** AI hanya akan memotong foto satu kali. Jika Anda ingin mengganti-ganti warna latar setelahnya, kuota API Anda tidak akan terpotong lagi.")
+# st.info("💡 **Catatan Pintar:** AI hanya akan memotong foto satu kali. Jika Anda ingin mengganti-ganti warna latar setelahnya, kuota API Anda tidak akan terpotong lagi.")
