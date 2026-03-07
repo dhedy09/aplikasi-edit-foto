@@ -191,30 +191,34 @@ with tab3:
     if enhance_file:
         img_asli = Image.open(enhance_file)
 
-        # Inisialisasi nilai memori awal jika belum ada
-    if "kecerahan" not in st.session_state:
-        st.session_state.kecerahan = 1.0
-        st.session_state.kontras = 1.0
-        st.session_state.saturasi = 1.0
-    
-    # Fungsi untuk mereset memori warna
-    def reset_warna():
-        st.session_state.kecerahan = 1.0
-        st.session_state.kontras = 1.0
-        st.session_state.saturasi = 1.0
-    
-    # Tombol Reset
-    st.button("🔄 Reset ke Semula", on_click=reset_warna)
-    
-    # Buat 3 kolom untuk slider agar rapi menyamping (sekarang pakai 'key')
-    col_b, col_c, col_s = st.columns(3)
-    with col_b:
-        kecerahan = st.slider("☀️ Kecerahan", min_value=0.5, max_value=2.0, step=0.1, key="kecerahan")
-    with col_c:
-        kontras = st.slider("🌗 Kontras", min_value=0.5, max_value=2.0, step=0.1, key="kontras")
-    with col_s:
-        saturasi = st.slider("🌈 Saturasi (Warna)", min_value=0.0, max_value=2.0, step=0.1, key="saturasi")
+        # --- Mulai dari sini, semuanya masuk ke dalam 'if enhance_file:' ---
 
+        # Inisialisasi nilai memori awal jika belum ada
+        if "kecerahan" not in st.session_state:
+            st.session_state.kecerahan = 1.0
+            st.session_state.kontras = 1.0
+            st.session_state.saturasi = 1.0
+        
+        # Fungsi untuk mereset memori warna
+        def reset_warna():
+            st.session_state.kecerahan = 1.0
+            st.session_state.kontras = 1.0
+            st.session_state.saturasi = 1.0
+        
+        # Tombol Reset
+        st.button("🔄 Reset ke Semula", on_click=reset_warna)
+        
+        # Buat 3 kolom untuk slider agar rapi menyamping
+        col_b, col_c, col_s = st.columns(3)
+        with col_b:
+            kecerahan = st.slider("☀️ Kecerahan", min_value=0.5, max_value=2.0, step=0.1, key="kecerahan")
+        with col_c:
+            kontras = st.slider("🌗 Kontras", min_value=0.5, max_value=2.0, step=0.1, key="kontras")
+        with col_s:
+            saturasi = st.slider("🌈 Saturasi (Warna)", min_value=0.0, max_value=2.0, step=0.1, key="saturasi")
+
+        # --- Bagian di bawah ini sejajar kembali dengan col_b, col_c, col_s ---
+        
         # Proses Edit Instan
         img_edit = ImageEnhance.Brightness(img_asli).enhance(kecerahan)
         img_edit = ImageEnhance.Contrast(img_edit).enhance(kontras)
@@ -235,6 +239,3 @@ with tab3:
             type="primary",
             use_container_width=True
         )
-
-
-
