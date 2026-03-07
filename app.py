@@ -6,6 +6,7 @@ from geopy.geocoders import Nominatim
 import io
 import numpy as np
 from streamlit_cropper import st_cropper
+import fitz  # Ini adalah nama pemanggilan untuk PyMuPDF
 
 # --- 1. KONFIGURASI HALAMAN (WAJIB PALING ATAS & CUMA 1 KALI) ---
 st.set_page_config(
@@ -108,7 +109,7 @@ with st.sidebar:
 
 # --- NAVIGASI MODERN (TABS) ---
 st.title("✨ STUDIO FOTO MAMAYO")
-tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8 = st.tabs(["✂️ Ganti Latar", "🗜️ Kompres", "🎨 Warna", "🔄 Format", "🪄 Filter", "🖨️ Cetak Foto", "📑 Lampiran SPJ", "✍️ Ekstrak TTD"])
+tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8, tab9 = st.tabs(["✂️ Ganti Latar", "🗜️ Kompres", "🎨 Warna", "🔄 Format", "🪄 Filter", "🖨️ Cetak Foto", "📑 Lampiran SPJ", "✍️ Ekstrak TTD", "📄 Alat PDF"])
 
 # ==========================================
 # TAB 1: HAPUS LATAR (AI)
@@ -733,6 +734,118 @@ with tab8:
                 type="primary", 
                 use_container_width=True
             )
+
+# ==========================================
+# TAB 9: ALAT PDF POWERFUL (KOMPRES & GABUNG)
+# ==========================================
+with tab9:
+    st.write("Alat super cepat untuk mengecilkan ukuran PDF dan menggabungkan banyak PDF menjadi satu dokumen utuh.")
+    
+    # Membuat sub-menu bergaya profesional
+    mode_pdf = st.radio("Pilih Mode Alat PDF:", ["🗜️ Kompres Ukuran PDF", "🔗 Gabungkan Banyak PDF"], horizontal=True)
+    st.markdown("---")
+    
+    # ----------------------------------------
+    # FITUR 1: KOMPRES PDF
+    # ----------------------------------------
+    if mode_pdf == "🗜️ Kompres Ukuran PDF":
+        st.markdown("### 🗜️ Kompresor PDF Pintar")
+        st.info("Mengecilkan ukuran file PDF dengan menghapus data sampah tersembunyi (metadata) dan merapatkan algoritma file tanpa memburamkan teks.")
+        
+        file_pdf_kompres = st.file_uploader("Unggah 1 File PDF yang ingin dikompres...", type=["pdf"], key="pdf_compress")
+        
+        if file_pdf_kompres:
+            # Hitung ukuran asli
+            bytes_asli = file_pdf_kompres.getvalue()
+            ukuran_asli_mb = len(bytes_asli) / (1024 * 1024)
+            
+            st.markdown(f"**📄 Nama File:** {file_pdf_kompres.name}")
+            st.markdown(f"**📦 Ukuran Asli:** `{ukuran_asli_mb:.2f} MB`")
+            
+            if st.button("🗜️ MULAI KOMPRES PDF", type="primary", use_container_width=True):
+                with st.spinner("Sedang memeras ukuran PDF..."):
+                    try:
+                        # Buka PDF dengan PyMuPDF
+                        doc = fitz.open(stream=bytes_asli, filetype="pdf")
+                        
+                        # PROSES KOMPRESI TINGKAT TINGGI
+                        # garbage=4 : Menghapus semua objek/gambar duplikat dan data mati
+                        # deflate=True : Mengompres aliran teks dan vektor
+                        hasil_bytes = doc.tobytes(garbage=4, deflate=True)
+                        
+                        ukuran_baru_mb = len(hasil_bytes) / (1024 * 1024)
+                        penghematan = 100 - ((ukuran_baru_mb / ukuran_asli_mb) * 100)
+                        
+                        st.success("✅ Kompresi Berhasil!")
+                        
+                        # Menampilkan Metrik Profesional (Label Status)
+                        col_metrik1, col_metrik2, col_metrik3 = st.columns(3)
+                        col_metrik1.metric(label="Ukuran Asli", value=f"{ukuran_asli_mb:.2f} MB")
+                        # delta_color="inverse" agar warna hijau saat ukurannya turun (minus)
+                        col_metrik2.metric(label="Ukuran Baru", value=f"{ukuran_baru_mb:.2f} MB", delta=f"-{penghematan:.1f}%", delta_color="inverse")
+                        
+                        # Tombol Download
+                        from datetime import datetime
+                        waktu = datetime.now().strftime("%Y%m%d_%H%M%S")
+                        
+                        st.download_button(
+                            label="📥 Download PDF Hasil Kompres",
+                            data=hasil_bytes,
+                            file_name=f"Kompres_{waktu}_{file_pdf_kompres.name}",
+                            mime="application/pdf",
+                            type="primary"
+                        )
+                    except Exception as e:
+                        st.error(f"Terjadi kesalahan saat mengompres: {e}")
+
+    # ----------------------------------------
+    # FITUR 2: GABUNG PDF
+    # ----------------------------------------
+    elif mode_pdf == "🔗 Gabungkan Banyak PDF":
+        st.markdown("### 🔗 Penggabung PDF (Merge)")
+        st.info("💡 **Tips:** Anda bisa memilih banyak file sekaligus saat jendela *upload* terbuka. File akan digabungkan sesuai urutan di bawah ini.")
+        
+        file_pdf_gabung = st.file_uploader("Unggah 2 atau lebih File PDF...", type=["pdf"], accept_multiple_files=True, key="pdf_merge")
+        
+        if file_pdf_gabung:
+            if len(file_pdf_gabung) < 2:
+                st.warning("⚠️ Mohon unggah minimal 2 file PDF untuk digabungkan.")
+            else:
+                st.success(f"Terdapat {len(file_pdf_gabung)} file siap digabungkan.")
+                
+                # Tampilkan urutan file yang akan digabung
+                st.markdown("**Urutan Halaman Nanti:**")
+                for i, file in enumerate(file_pdf_gabung):
+                    st.markdown(f"{i+1}. `{file.name}`")
+                    
+                if st.button("🔗 GABUNGKAN SEMUA PDF", type="primary", use_container_width=True):
+                    with st.spinner("Menyatukan dokumen..."):
+                        try:
+                            # Buat dokumen PDF kosong sebagai penampung
+                            pdf_utama = fitz.open()
+                            
+                            # Masukkan setiap file yang diunggah ke dokumen utama
+                            for file in file_pdf_gabung:
+                                doc_sementara = fitz.open(stream=file.getvalue(), filetype="pdf")
+                                pdf_utama.insert_pdf(doc_sementara)
+                                
+                            hasil_bytes_gabung = pdf_utama.tobytes()
+                            
+                            st.success("✅ Seluruh file berhasil disatukan!")
+                            
+                            from datetime import datetime
+                            waktu = datetime.now().strftime("%H%M%S")
+                            
+                            st.download_button(
+                                label="📥 Download PDF Gabungan",
+                                data=hasil_bytes_gabung,
+                                file_name=f"Gabungan_{len(file_pdf_gabung)}_File_{waktu}.pdf",
+                                mime="application/pdf",
+                                type="primary",
+                                use_container_width=True
+                            )
+                        except Exception as e:
+                            st.error(f"Terjadi kesalahan saat menggabungkan: {e}")
         
 # --- FOOTER APLIKASI ---
 st.markdown("---")
@@ -743,6 +856,7 @@ st.markdown(
     "</div>", 
     unsafe_allow_html=True
 )
+
 
 
 
