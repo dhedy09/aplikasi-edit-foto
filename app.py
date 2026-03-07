@@ -26,45 +26,40 @@ def remove_bg_api(image_file):
         return None
 
 # --- UI APLIKASI ---
-uploaded_file = st.file_uploader("Unggah foto yang ingin dibersihkan...", type=["jpg", "png", "jpeg"])
+uploaded_file = st.file_uploader("Unggah foto...", type=["jpg", "png", "jpeg"])
 
 if uploaded_file:
-    # Tampilkan Foto Asli
     img_original = Image.open(uploaded_file)
     st.image(img_original, caption="Foto Asli", width="stretch")
     
-    # Pilihan Warna Latar
     st.markdown("---")
-    bg_choice = st.radio("Pilih Latar Belakang Baru:", ["Transparan", "Warna Merah", "Warna Biru", "Pilih Warna Sendiri"], horizontal=True)
+    # BAGIAN YANG DIUBAH: Pilihan dibuat simpel
+    bg_choice = st.radio("Pilih Latar Belakang:", ["Transparan", "Ganti Warna"], horizontal=True)
     
-    custom_color = "#FF0000" # Default merah
-    if bg_choice == "Warna Biru": custom_color = "#0000FF"
-    elif bg_choice == "Pilih Warna Sendiri": custom_color = st.color_picker("Pilih Warna:", "#00FF00")
+    selected_color = "#FFFFFF" # Default Putih
+    if bg_choice == "Ganti Warna":
+        # Color picker akan muncul jika user memilih "Ganti Warna"
+        selected_color = st.color_picker("Pilih Warna Latar:", "#FF0000")
 
     if st.button("🪄 Bersihkan Foto Sekarang", type="primary"):
-        with st.spinner("Menghubungi server remove.bg untuk hasil sempurna..."):
-            # Karena API butuh file mentah, kita kirim ulang bytes-nya
+        with st.spinner("Proses penghapusan latar oleh AI..."):
             uploaded_file.seek(0)
             result_bytes = remove_bg_api(uploaded_file)
             
             if result_bytes:
-                # Proses hasil dari API
                 foreground = Image.open(io.BytesIO(result_bytes)).convert("RGBA")
                 
                 if bg_choice == "Transparan":
                     final_image = foreground
                 else:
-                    # Buat latar warna solid
-                    background = Image.new("RGBA", foreground.size, custom_color)
+                    # Logika pewarnaan yang lebih bersih
+                    background = Image.new("RGBA", foreground.size, selected_color)
                     background.paste(foreground, (0, 0), foreground)
                     final_image = background
                 
-                st.success("Selesai! Hasil jauh lebih rapi, kan?")
-                st.image(final_image, caption="Hasil Kualitas Ultra", width="stretch")
+                st.success("Selesai!")
+                st.image(final_image, caption="Hasil Akhir", width="stretch")
                 
-                # Tombol Download
                 buf = io.BytesIO()
                 final_image.save(buf, format="PNG")
-                st.download_button("📥 Download Hasil HD", data=buf.getvalue(), file_name="hasil_ultra.png", mime="image/png")
-
-st.info("Info: Menggunakan API eksternal lebih akurat dalam membedakan warna baju dengan benda di sekitarnya.")
+                st.download_button("📥 Download Hasil", data=buf.getvalue(), file_name="hasil_clean.png", mime="image/png")
