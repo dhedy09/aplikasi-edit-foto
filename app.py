@@ -692,7 +692,7 @@ with tab8:
         
         # FITUR BARU: Memunculkan alat Crop Interaktif
         # realtime_update=True agar hasil crop langsung muncul
-        cropped_img = st_cropper(img_ttd_asli, realtime_update=True, box_color='#0066cc', aspect_ratio=None)
+        cropped_img = st_cropper(img_ttd_asli, realtime_update=False, box_color='#0066cc', aspect_ratio=None)
         
         st.markdown("---")
         st.markdown("### ⚙️ 2. Pengaturan Ekstraksi")
@@ -766,6 +766,7 @@ st.markdown(
     "</div>", 
     unsafe_allow_html=True
 )
+
 
 
 
