@@ -5,6 +5,7 @@ from datetime import datetime
 from geopy.geocoders import Nominatim
 import io
 import numpy as np
+from streamlit_cropper import st_cropper
 
 # --- KONFIGURASI HALAMAN ---
 st.set_page_config(page_title="Studio AI Ultra", layout="centered", page_icon="✨")
@@ -682,16 +683,19 @@ with tab8:
     ttd_file = st.file_uploader("Unggah Foto Tanda Tangan / Stempel...", type=["jpg", "png", "jpeg"], key="upload_ttd")
     
     if ttd_file:
-        img_ttd_asli = Image.open(ttd_file).convert("RGBA")
+        # Buka gambar (gunakan RGB dulu untuk cropper)
+        img_ttd_asli = Image.open(ttd_file).convert("RGB")
         
-        col_asli, col_hasil = st.columns(2)
-        
-        with col_asli:
-            st.markdown("**📷 Foto Asli**")
-            st.image(img_ttd_asli, use_container_width=True)
-            
         st.markdown("---")
-        st.markdown("### ⚙️ Pengaturan Ekstraksi")
+        st.markdown("### ✂️ 1. Potong Area Tanda Tangan")
+        st.info("💡 Tarik ujung kotak biru di bawah ini untuk mengambil area tanda tangannya saja (buang area meja/bayangan).")
+        
+        # FITUR BARU: Memunculkan alat Crop Interaktif
+        # realtime_update=True agar hasil crop langsung muncul
+        cropped_img = st_cropper(img_ttd_asli, realtime_update=True, box_color='#0066cc', aspect_ratio=None)
+        
+        st.markdown("---")
+        st.markdown("### ⚙️ 2. Pengaturan Ekstraksi")
         st.info("💡 Geser tuas di bawah ini sampai latar belakang kertas hilang dan tinta terlihat jelas.")
         
         # Kontrol interaktif
@@ -701,51 +705,58 @@ with tab8:
         with col_set2:
             kontras = st.slider("Tebalkan Tinta (Kontras)", min_value=1.0, max_value=5.0, value=2.0, step=0.1, help="Menebalkan warna tinta agar tidak pudar setelah kertas dihapus.")
             
-        # Proses Gambar
+        # Proses Gambar (Menggunakan gambar yang SUDAH di-crop)
         with st.spinner("Memproses transparansi..."):
-            # 1. Tingkatkan kontras dulu agar tinta makin pekat dan kertas makin putih
-            enhancer = ImageEnhance.Contrast(img_ttd_asli)
+            # Ubah gambar hasil crop ke RGBA (agar bisa punya background transparan)
+            img_crop_rgba = cropped_img.convert("RGBA")
+            
+            # 1. Tingkatkan kontras
+            enhancer = ImageEnhance.Contrast(img_crop_rgba)
             img_kontras = enhancer.enhance(kontras)
             
-            # 2. Ubah gambar ke format array angka (NumPy) untuk manipulasi piksel
+            # 2. Ubah gambar ke format array angka (NumPy)
             data_piksel = np.array(img_kontras)
             
-            # Pisahkan warna Red, Green, Blue
+            # Pisahkan warna
             r = data_piksel[:, :, 0]
             g = data_piksel[:, :, 1]
             b = data_piksel[:, :, 2]
             
-            # Hitung tingkat kecerahan setiap piksel (Grayscale / Luma)
-            # Rumus standar kecerahan gambar
+            # Hitung kecerahan
             kecerahan = (0.299 * r) + (0.587 * g) + (0.114 * b)
             
-            # 3. Kunci utamanya: Jika kecerahan piksel LEBIH BESAR dari toleransi, jadikan transparan (Alpha = 0)
-            # Jika LEBIH KECIL (berarti itu tinta gelap), biarkan tetap solid (Alpha = 255)
+            # 3. Kunci utamanya: Buat transparan yang lebih terang dari toleransi
             alpha_channel = np.where(kecerahan > toleransi, 0, 255).astype(np.uint8)
             
-            # Terapkan transparansi ke gambar
+            # Terapkan transparansi
             data_piksel[:, :, 3] = alpha_channel
             
-            # Kembalikan array angka menjadi gambar
+            # Kembalikan jadi gambar
             img_hasil_ttd = Image.fromarray(data_piksel)
             
-        with col_hasil:
-            st.markdown("**✨ Hasil Transparan**")
-            # Tampilkan gambar di Streamlit (Streamlit otomatis memberi latar belakang kotak-kotak/gelap untuk PNG transparan)
+        # Tampilkan Hasil Akhir
+        st.markdown("### ✨ 3. Hasil Transparan")
+        col_dummy1, col_hasil_tengah, col_dummy2 = st.columns([1, 2, 1])
+        with col_hasil_tengah:
             st.image(img_hasil_ttd, use_container_width=True)
             
         # Tombol Download
         buf_ttd = io.BytesIO()
         img_hasil_ttd.save(buf_ttd, format="PNG")
+        
+        # Tambahkan tanggal di nama file agar tidak tertimpa
+        import datetime
+        waktu_sekarang = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+        
         st.download_button(
             label="📥 Download Tanda Tangan (PNG Transparan)", 
             data=buf_ttd.getvalue(), 
-            file_name="Tanda_Tangan_Transparan.png", 
+            file_name=f"TTD_Transparan_{waktu_sekarang}.png", 
             mime="image/png", 
             type="primary", 
             use_container_width=True
         )
-
+        
 # --- FOOTER APLIKASI ---
 st.markdown("---")
 st.markdown(
@@ -755,6 +766,7 @@ st.markdown(
     "</div>", 
     unsafe_allow_html=True
 )
+
 
 
 
