@@ -338,10 +338,10 @@ with tab5:
                 )
 
 # ==========================================
-# TAB 6: STUDIO CETAK MULTI-FOTO (KERANJANG)
+# TAB 6: STUDIO CETAK MULTI-FOTO (KERANJANG MASSAL)
 # ==========================================
 with tab6:
-    st.write("Tambahkan berbagai foto dan ukuran ke antrean, lalu cetak sekaligus dalam satu kertas A4.")
+    st.write("Unggah banyak foto sekaligus (Massal) atau satu per satu, lalu cetak rapi dalam kertas A4.")
 
     # Inisialisasi keranjang cetak jika belum ada
     if "keranjang_cetak" not in st.session_state:
@@ -352,33 +352,47 @@ with tab6:
         col_up, col_set = st.columns([1, 1])
         
         with col_up:
-            foto_input = st.file_uploader("Pilih Foto...", type=["jpg", "png", "jpeg"], key="input_multi_cetak")
+            # PERUBAHAN UTAMA: accept_multiple_files=True ditambahkan di sini
+            foto_input = st.file_uploader("Pilih Satu atau Banyak Foto sekaligus...", type=["jpg", "png", "jpeg"], accept_multiple_files=True, key="input_multi_cetak")
+            
+            # Jika ada foto yang diunggah, tampilkan info
             if foto_input:
-                st.image(foto_input, width=150)
+                st.info(f"✅ {len(foto_input)} foto siap diproses.")
+                # Tampilkan preview kecil untuk maksimal 3 foto pertama saja agar tidak memenuhi layar
+                cols = st.columns(min(len(foto_input), 3))
+                for i in range(min(len(foto_input), 3)):
+                    cols[i].image(foto_input[i], use_container_width=True)
+                if len(foto_input) > 3:
+                    st.caption(f"... dan {len(foto_input) - 3} foto lainnya.")
         
         with col_set:
             opsi_ukuran = ["2x3", "3x4", "4x6", "2R", "3R", "4R", "5R", "6R", "8R", "10R"]
-            pilih_uk = st.selectbox("Ukuran:", opsi_ukuran)
-            pilih_jml = st.number_input("Jumlah Lembar:", min_value=1, max_value=50, value=2)
+            pilih_uk = st.selectbox("Pilih Ukuran:", opsi_ukuran)
+            pilih_jml = st.number_input("Jumlah lembar PER FOTO:", min_value=1, max_value=50, value=2)
             
-            if st.button("📥 Masukkan ke Keranjang"):
+            if st.button("📥 Masukkan Semua ke Keranjang", use_container_width=True):
                 if foto_input:
-                    # Simpan data foto dan instruksi ke session state
-                    img_data = Image.open(foto_input).convert("RGB")
-                    st.session_state.keranjang_cetak.append({
-                        "image": img_data,
-                        "ukuran": pilih_uk,
-                        "jumlah": pilih_jml
-                    })
-                    st.success(f"Berhasil menambah {pilih_jml} lembar {pilih_uk}")
+                    # Loop untuk memasukkan SEMUA foto yang diunggah ke keranjang sekaligus
+                    for file in foto_input:
+                        img_data = Image.open(file).convert("RGB")
+                        st.session_state.keranjang_cetak.append({
+                            "image": img_data,
+                            "ukuran": pilih_uk,
+                            "jumlah": pilih_jml,
+                            "nama_file": file.name
+                        })
+                    st.success(f"Berhasil memasukkan {len(foto_input)} foto ke antrean!")
                 else:
                     st.error("Silakan pilih foto dulu!")
 
     # 2. Tampilkan Keranjang & Tombol Reset
     if st.session_state.keranjang_cetak:
         st.markdown("### 🛒 Daftar Antrean Cetak")
-        for i, item in enumerate(st.session_state.keranjang_cetak):
-            st.text(f"{i+1}. Foto {item['ukuran']} - {item['jumlah']} lembar")
+        
+        # Menghitung total lembar foto yang akan dicetak
+        total_cetak = sum(item['jumlah'] for item in st.session_state.keranjang_cetak)
+        st.write(f"**Total file di keranjang:** {len(st.session_state.keranjang_cetak)} foto.")
+        st.write(f"**Total yang akan diprint:** {total_cetak} lembar potongan foto.")
         
         if st.button("🗑️ Kosongkan Keranjang"):
             st.session_state.keranjang_cetak = []
@@ -386,9 +400,9 @@ with tab6:
 
         st.markdown("---")
 
-        # 3. Proses Gabungkan ke PDF (Logika Sama dengan sebelumnya namun loop ke keranjang)
+        # 3. Proses Gabungkan ke PDF
         if st.button("🖨️ PROSES CETAK SEMUA (PDF)", type="primary", use_container_width=True):
-            with st.spinner("Menyusun semua foto ke kertas A4..."):
+            with st.spinner(f"Menyusun {total_cetak} foto ke kertas A4..."):
                 dpi = 300
                 ukuran_px = {
                     "2x3": (236, 354), "3x4": (354, 472), "4x6": (472, 709),
@@ -403,7 +417,7 @@ with tab6:
                     for _ in range(item['jumlah']):
                         semua_pesanan.append({"img": item['image'], "uk": item['ukuran']})
                 
-                # Sortir ukuran besar ke kecil
+                # Sortir ukuran besar ke kecil agar kertas efisien
                 semua_pesanan.sort(key=lambda x: ukuran_px[x['uk']][0] * ukuran_px[x['uk']][1], reverse=True)
                 
                 a4_w, a4_h = 2480, 3508
@@ -414,15 +428,12 @@ with tab6:
                 
                 for item in semua_pesanan:
                     w_px, h_px = ukuran_px[item['uk']]
-                    foto_crop = ImageOps.fit(item['img'], (w_px, h_px), method=Image.Resampling.LANCZOS)
+                    foto_crop = ImageOps.fit(item['img'], (w_px, h_px), method=Image.Resampling.LANCZOS, centering=(0.5, 0.5))
                     
-                    # --- TAMBAHAN: MEMBUAT GARIS HITAM TIPIS (BORDER) ---
-                    # Kita gunakan ImageDraw untuk menggambar garis di sekeliling foto_crop
+                    # --- BORDER HITAM TIPIS UNTUK GARIS GUNTING ---
                     draw_border = ImageDraw.Draw(foto_crop)
-                    # Menggambar persegi tanpa warna isi (fill=None) dengan garis tepi hitam (outline)
-                    # [0, 0, lebar-1, tinggi-1] adalah koordinat pojok foto
-                    draw_border.rectangle([0, 0, w_px - 1, h_px - 1], outline="black", width=1)
-                    # ----------------------------------------------------
+                    draw_border.rectangle([0, 0, w_px - 1, h_px - 1], outline="black", width=2)
+                    # ----------------------------------------------
 
                     if item['uk'] == "10R":
                         k10 = Image.new("RGB", (w_px + margin*2, h_px + margin*2), "white")
@@ -430,21 +441,24 @@ with tab6:
                         halaman_cetak.append(k10)
                         continue
 
-                    # (Sisa kode penempatan x, y tetap sama seperti sebelumnya...)
+                    # Cek muat ke kanan
                     if x + w_px + margin > a4_w:
                         x = margin
                         y += tinggi_baris + margin
                         tinggi_baris = 0
                         
+                    # Cek muat ke bawah (ganti kertas)
                     if y + h_px + margin > a4_h:
                         halaman_cetak.append(kanvas)
                         kanvas = Image.new("RGB", (a4_w, a4_h), "white")
                         x, y, tinggi_baris = margin, margin, 0
                         
+                    # Tempel foto
                     kanvas.paste(foto_crop, (x, y))
                     x += w_px + margin
                     tinggi_baris = max(tinggi_baris, h_px)
                 
+                # Masukkan sisa kertas terakhir
                 if kanvas.getbbox():
                     halaman_cetak.append(kanvas)
                 
@@ -452,8 +466,9 @@ with tab6:
                 buf_pdf = io.BytesIO()
                 halaman_cetak[0].save(buf_pdf, format="PDF", save_all=True, append_images=halaman_cetak[1:])
                 
-                st.success(f"PDF Berhasil dibuat dengan {len(halaman_cetak)} halaman!")
-                st.download_button("📥 Download PDF Siap Print", buf_pdf.getvalue(), "cetak_campuran.pdf", "application/pdf", use_container_width=True)
+                st.success(f"🎉 Selesai! Menggunakan {len(halaman_cetak)} halaman kertas A4.")
+                st.download_button("📥 Download File PDF (Siap Print)", buf_pdf.getvalue(), "cetak_massal_multatuli.pdf", "application/pdf", type="primary", use_container_width=True)
+
 
 
 
