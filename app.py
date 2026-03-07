@@ -66,6 +66,50 @@ with st.sidebar:
         bersihkan_memori()
         st.rerun()
 
+# Letakkan di baris paling atas setelah import
+st.set_page_config(
+    page_title="Studio Multatuli | Alat Foto & SPJ",
+    page_icon="📸",
+    layout="wide", # Menggunakan seluruh lebar layar komputer
+    initial_sidebar_state="expanded"
+)
+
+# Menyembunyikan elemen bawaan Streamlit agar terlihat seperti aplikasi mandiri
+st.markdown("""
+    <style>
+    #MainMenu {visibility: hidden;}
+    footer {visibility: hidden;}
+    header {visibility: hidden;}
+    
+    /* Memoles tampilan tombol agar lebih melengkung dan modern */
+    .stButton>button {
+        border-radius: 8px;
+        transition: all 0.3s;
+    }
+    .stButton>button:hover {
+        transform: scale(1.02);
+    }
+    </style>
+""", unsafe_allow_html=True)
+
+# --- PENGATURAN SIDEBAR KIRI ---
+with st.sidebar:
+    # Jika Anda punya file logo, bisa gunakan: st.image("logo_anda.png")
+    # Untuk sementara kita pakai teks besar:
+    st.markdown("<h1 style='text-align: center;'>📸 Studio Multatuli</h1>", unsafe_allow_html=True)
+    st.markdown("<p style='text-align: center; color: gray;'>Pisau Lipat Administrasi Digital</p>", unsafe_allow_html=True)
+    
+    st.markdown("---")
+    st.markdown("### 📌 Tentang Aplikasi")
+    st.write("Aplikasi cerdas untuk membantu memproses pas foto massal, hapus latar belakang, hingga penyusunan lampiran SPJ dengan hitungan detik.")
+    
+    st.markdown("---")
+    st.info("💡 **Tips:** Gunakan komputer/laptop untuk pengalaman drag-and-drop file yang lebih cepat.")
+    
+    st.markdown("---")
+    st.markdown("**Versi:** 1.0 (Final Release)")
+    st.markdown("**Dibuat untuk:** Pekerja Cerdas 🚀")
+
 # --- NAVIGASI MODERN (TABS) ---
 st.title("✨ STUDIO FOTO MAMAYO")
 tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8 = st.tabs(["✂️ Ganti Latar", "🗜️ Kompres", "🎨 Warna", "🔄 Format", "🪄 Filter", "🖨️ Cetak Foto", "📑 Lampiran SPJ", "✍️ Ekstrak TTD"])
@@ -702,6 +746,15 @@ with tab8:
             use_container_width=True
         )
 
+# --- FOOTER APLIKASI ---
+st.markdown("---")
+st.markdown(
+    "<div style='text-align: center; color: gray;'>"
+    # "Dibuat dengan ❤️ oleh <b>[Nama Anda / Tim Anda]</b> | © 2026 Studio Mamayo"
+    "Dibuat dengan ❤️ oleh <b>Mamayo</b> | © 2026 Studio Mamayo"
+    "</div>", 
+    unsafe_allow_html=True
+)
 
 
 
