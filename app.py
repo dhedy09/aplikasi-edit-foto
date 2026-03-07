@@ -8,8 +8,7 @@ st.set_page_config(page_title="Studio Foto AI Ultra", layout="centered")
 st.title("🚀 Studio Foto AI Ultra (Powered by Remove.bg)")
 st.write("Kualitas industri. Hasil potong super bersih dan akurat!")
 
-# API Key kamu
-REMOVE_BG_API_KEY = "F6Thg63UMox3LeHkgqNwbnVy"
+REMOVE_BG_API_KEY = st.secrets["REMOVE_BG_API_KEY"]
 
 # --- FUNGSI INTI ---
 def remove_bg_api(image_file):
@@ -79,3 +78,4 @@ if uploaded_file:
                 st.download_button("📥 Download Hasil", data=buf.getvalue(), file_name="hasil_edit_ultra.png", mime="image/png")
 
 st.info("Catatan: Aplikasi ini fokus pada akurasi pemotongan latar belakang menggunakan server profesional.")
+
