@@ -2,6 +2,7 @@ import streamlit as st
 import requests
 from PIL import Image, ImageOps, ImageEnhance, ImageFilter, ImageDraw, ImageFont
 from datetime import datetime
+from geopy.geocoders import Nominatim
 import io
 
 # --- KONFIGURASI HALAMAN ---
@@ -278,86 +279,102 @@ with tab4:
                 )
 
 # ==========================================
-# TAB 5: STEMPEL ESTETIK (TEKS, LOKASI & WAKTU)
+# TAB 5: STEMPEL ESTETIK (TEKS, LOKASI, WAKTU & KOORDINAT)
 # ==========================================
 with tab5:
-    st.write("Tambahkan cap lokasi, momen, dan waktu ala Instagram Story.")
+    st.write("Tambahkan cap lokasi, momen, waktu, hingga GPS Koordinat ala profesional.")
     
     watermark_file = st.file_uploader("Unggah foto...", type=["jpg", "png", "jpeg"], key="upload_watermark")
     
     if watermark_file:
-        img_wm = Image.open(watermark_file).convert("RGBA") # Wajib RGBA untuk efek transparan
+        img_wm = Image.open(watermark_file).convert("RGBA")
         
         # --- Pengaturan Pengguna ---
         col_teks, col_pos = st.columns(2)
         with col_teks:
-            teks_lokasi = st.text_input("📍 Ketik Lokasi / Momen:", "Bandar Lampung, Indonesia")
+            teks_lokasi = st.text_input("📍 Ketik Lokasi (Cth: Monas, Jakarta):", "Bandar Lampung")
             tambah_waktu = st.checkbox("🕰️ Tambahkan Waktu Saat Ini?", value=True)
+            tambah_koordinat = st.checkbox("🌍 Lacak & Tambahkan Koordinat GPS?", value=False)
+            
         with col_pos:
             posisi = st.selectbox("Letak Stempel:", ["Kanan Bawah", "Kiri Bawah", "Kiri Atas", "Kanan Atas"])
             
         if st.button("🪄 Pasang Stempel", type="primary", use_container_width=True):
-            with st.spinner("Menulis di atas foto..."):
-                # Siapkan Teks Akhir
+            with st.spinner("Meracik stempel & mencari lokasi..."):
+                
                 teks_akhir = teks_lokasi
+                
+                # 1. Logika Pencari Koordinat GPS
+                if tambah_koordinat and teks_lokasi:
+                    try:
+                        # Membuat agen pencari peta
+                        geolocator = Nominatim(user_agent="studio_foto_multatuli")
+                        lokasi_map = geolocator.geocode(teks_lokasi)
+                        
+                        if lokasi_map:
+                            koordinat_str = f"Lat: {lokasi_map.latitude:.4f} | Long: {lokasi_map.longitude:.4f}"
+                            teks_akhir += f"\n{koordinat_str}"
+                        else:
+                            st.warning(f"⚠️ Radar tidak menemukan koordinat untuk '{teks_lokasi}'.")
+                    except:
+                        st.warning("⚠️ Gagal mengambil koordinat (jaringan sibuk).")
+                
+                # 2. Logika Penambah Waktu
                 if tambah_waktu:
                     waktu_sekarang = datetime.now().strftime("%d %b %Y - %H:%M")
-                    teks_akhir = f"{teks_lokasi}\n{waktu_sekarang}" if teks_lokasi else waktu_sekarang
+                    teks_akhir += f"\n{waktu_sekarang}" if teks_akhir else waktu_sekarang
                 
-                # Buat layer transparan kosong seukuran foto asli
+                # 3. Proses Menggambar di Foto
                 txt_layer = Image.new("RGBA", img_wm.size, (255, 255, 255, 0))
                 draw = ImageDraw.Draw(txt_layer)
                 
-                # Ukuran font dinamis (menyesuaikan besar foto)
-                ukuran_font = max(int(img_wm.width * 0.03), 15)
+                ukuran_font = max(int(img_wm.width * 0.025), 15) # Ukuran sedikit dikecilkan agar muat
                 
-                # Coba pakai Roboto jika ada di folder, jika tidak pakai font bawaan
                 try:
                     font = ImageFont.truetype("Roboto-Regular.ttf", ukuran_font)
                 except IOError:
                     font = ImageFont.load_default()
                     
-                # Hitung ukuran kotak teks
-                bbox = draw.multiline_textbbox((0, 0), teks_akhir, font=font)
+                # Hitung ukuran kotak
+                bbox = draw.multiline_textbbox((0, 0), teks_akhir, font=font, spacing=5)
                 teks_lebar = bbox[2] - bbox[0]
                 teks_tinggi = bbox[3] - bbox[1]
                 
-                # Margin & Padding (Jarak teks ke tepi kotak)
-                padding = 20
+                padding = 15
                 margin = 30
                 
-                # Tentukan Koordinat X dan Y berdasarkan pilihan posisi
+                # Penempatan
                 if posisi == "Kiri Atas":
                     x, y = margin, margin
                 elif posisi == "Kanan Atas":
                     x, y = img_wm.width - teks_lebar - margin - (padding*2), margin
                 elif posisi == "Kiri Bawah":
                     x, y = margin, img_wm.height - teks_tinggi - margin - (padding*2)
-                else: # Kanan Bawah (Default)
+                else: 
                     x, y = img_wm.width - teks_lebar - margin - (padding*2), img_wm.height - teks_tinggi - margin - (padding*2)
                 
-                # Gambar Kotak Hitam Semi-Transparan (Alpha 120 dari 255)
+                # Gambar Kotak Hitam (Alpha 140)
                 kotak_bg = [x, y, x + teks_lebar + (padding*2), y + teks_tinggi + (padding*2)]
-                draw.rectangle(kotak_bg, fill=(0, 0, 0, 120))
+                draw.rectangle(kotak_bg, fill=(0, 0, 0, 140))
                 
-                # Tulis Teks Berwarna Putih di atas kotak
-                draw.multiline_text((x + padding, y + padding), teks_akhir, font=font, fill=(255, 255, 255, 255))
+                # Tulis Teks Putih
+                draw.multiline_text((x + padding, y + padding), teks_akhir, font=font, fill=(255, 255, 255, 255), spacing=5)
                 
-                # Gabungkan foto asli dengan layer teks
-                hasil_akhir = Image.alpha_composite(img_wm, txt_layer)
-                hasil_akhir = hasil_akhir.convert("RGB") # Kembalikan ke RGB agar bisa di-download sbg JPG
+                # Gabungkan
+                hasil_akhir = Image.alpha_composite(img_wm, txt_layer).convert("RGB")
                 
                 st.markdown("---")
-                st.image(hasil_akhir, caption="✨ Hasil Stempel Estetik", use_container_width=True)
+                st.image(hasil_akhir, caption="✨ Hasil Stempel Super Lengkap", use_container_width=True)
                 
-                # Tombol Download
                 buf_wm = io.BytesIO()
                 hasil_akhir.save(buf_wm, format="JPEG", quality=95)
                 st.download_button(
-                    label="📥 Download Foto",
+                    label="📥 Download Foto Stempel",
                     data=buf_wm.getvalue(),
-                    file_name="foto_stempel.jpg",
+                    file_name="foto_stempel_gps.jpg",
                     mime="image/jpeg",
-                    type="primary"
+                    type="primary",
+                    use_container_width=True
                 )
+
 
