@@ -6,3 +6,4 @@ scikit-image
 geopy
 streamlit-cropper
 PyMuPDF
+openpyxl
