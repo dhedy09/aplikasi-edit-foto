@@ -1,106 +1,70 @@
 import streamlit as st
-from rembg import remove, new_session
-from PIL import Image, ImageFilter
+import requests
+from PIL import Image
 import io
 
-# Konfigurasi Halaman Web
-st.set_page_config(page_title="Studio Foto AI Pro", layout="centered")
-st.title("✨ Studio Foto AI Pro (Portrait Edition)")
-st.write("Menggunakan AI Spesialis Manusia. Telinga & tangan lebih presisi!")
+# Konfigurasi Halaman
+st.set_page_config(page_title="Studio Foto AI Ultra", layout="centered")
+st.title("🚀 Studio Foto AI (Powered by Remove.bg)")
+st.write("Kualitas industri. Meja dan detail rumit pasti hilang!")
 
-# Memuat AI Khusus Manusia (Aman untuk RAM Streamlit)
-@st.cache_resource
-def get_human_model():
-    # Model ini dilatih khusus untuk anatomi manusia
-    return new_session("u2net_human_seg")
+# API Key kamu
+REMOVE_BG_API_KEY = "F6Thg63UMox3LeHkgqNwbnVy"
 
-# Fungsi pembantu untuk memproses gambar
-def process_remove_bg(image_input):
-    img_byte = io.BytesIO()
-    image_input.save(img_byte, format='PNG')
-    
-    # Mematikan alpha_matting agar tidak bocor warna merah, 
-    # dan menggunakan model spesialis manusia
-    res_bytes = remove(
-        img_byte.getvalue(),
-        session=get_human_model(),
-        alpha_matting=False,
-        post_process_mask=True
+def remove_bg_api(image_file):
+    """Fungsi untuk memproses gambar lewat API remove.bg"""
+    response = requests.post(
+        'https://api.remove.bg/v1.0/removebg',
+        files={'image_file': image_file},
+        data={'size': 'auto'},
+        headers={'X-Api-Key': REMOVE_BG_API_KEY},
     )
-    return Image.open(io.BytesIO(res_bytes)).convert("RGBA")
+    if response.status_code == requests.codes.ok:
+        return response.content
+    else:
+        st.error(f"Terjadi kesalahan API: {response.status_code} - {response.text}")
+        return None
 
-# --- MEMBUAT TAB MENU ---
-tab1, tab2 = st.tabs(["🎨 Ganti Latar", "💧 Efek Blur (Portrait)"])
+# --- UI APLIKASI ---
+uploaded_file = st.file_uploader("Unggah foto yang ingin dibersihkan...", type=["jpg", "png", "jpeg"])
 
-# ==========================================
-# TAB 1: GANTI LATAR (WARNA & GAMBAR)
-# ==========================================
-with tab1:
-    st.header("Hapus & Ganti Latar Belakang")
-    file_tab1 = st.file_uploader("1. Unggah Foto Utama...", type=["jpg", "png", "jpeg"], key="file1")
+if uploaded_file:
+    # Tampilkan Foto Asli
+    img_original = Image.open(uploaded_file)
+    st.image(img_original, caption="Foto Asli", width="stretch")
     
-    if file_tab1:
-        img1 = Image.open(file_tab1).convert("RGBA")
-        st.image(img1, caption="Foto Asli", width="stretch")
-        
-        st.markdown("---")
-        bg_type = st.radio("2. Pilih Tipe Latar Baru:", ["Transparan", "Warna Solid", "Gambar Pemandangan"], horizontal=True)
-        
-        bg_color = "#FFFFFF"
-        bg_image_file = None
-        
-        if bg_type == "Warna Solid":
-            bg_color = st.color_picker("Pilih Warna:", "#FF0000")
-        elif bg_type == "Gambar Pemandangan":
-            bg_image_file = st.file_uploader("Unggah Gambar Pemandangan/Latar...", type=["jpg", "png", "jpeg"], key="bg_file")
-        
-        if st.button("🪄 Proses Ganti Latar", type="primary"):
-            with st.spinner("AI Spesialis Manusia sedang bekerja..."):
-                fg = process_remove_bg(img1)
-                
-                final_img1 = fg # Default Transparan
-                
-                if bg_type == "Warna Solid":
-                    bg = Image.new("RGBA", fg.size, bg_color)
-                    bg.paste(fg, (0, 0), fg)
-                    final_img1 = bg
-                elif bg_type == "Gambar Pemandangan" and bg_image_file is not None:
-                    bg_img = Image.open(bg_image_file).convert("RGBA")
-                    bg_img = bg_img.resize(fg.size)
-                    bg_img.paste(fg, (0, 0), fg)
-                    final_img1 = bg_img
-                    
-                st.success("Selesai!")
-                st.image(final_img1, caption="Hasil Akhir (Telinga Lebih Tajam)", width="stretch")
-                
-                buf1 = io.BytesIO()
-                final_img1.save(buf1, format="PNG")
-                st.download_button("📥 Download Hasil", data=buf1.getvalue(), file_name="hasil_edit_portrait.png", mime="image/png")
-
-# ==========================================
-# TAB 2: EFEK BLUR (BOKEH)
-# ==========================================
-with tab2:
-    st.header("Efek Kamera DSLR (Blur Latar)")
-    file_tab2 = st.file_uploader("Unggah Foto...", type=["jpg", "png", "jpeg"], key="file2")
+    # Pilihan Warna Latar
+    st.markdown("---")
+    bg_choice = st.radio("Pilih Latar Belakang Baru:", ["Transparan", "Warna Merah", "Warna Biru", "Pilih Warna Sendiri"], horizontal=True)
     
-    if file_tab2:
-        img2 = Image.open(file_tab2).convert("RGBA")
-        st.image(img2, caption="Foto Asli", width="stretch")
-        
-        blur_amount = st.slider("Tingkat Keburaman (Blur)", min_value=1, max_value=20, value=7)
-        
-        if st.button("💧 Terapkan Efek Blur", type="primary"):
-            with st.spinner("Menerapkan efek lensa DSLR..."):
-                bg_blurred = img2.filter(ImageFilter.GaussianBlur(blur_amount))
-                fg2 = process_remove_bg(img2)
-                bg_blurred.paste(fg2, (0, 0), fg2)
-                
-                st.success("Selesai!")
-                st.image(bg_blurred, caption="Hasil Blur", width="stretch")
-                
-                buf2 = io.BytesIO()
-                bg_blurred.save(buf2, format="PNG")
-                st.download_button("📥 Download Hasil Blur", data=buf2.getvalue(), file_name="hasil_blur.png", mime="image/png")
+    custom_color = "#FF0000" # Default merah
+    if bg_choice == "Warna Biru": custom_color = "#0000FF"
+    elif bg_choice == "Pilih Warna Sendiri": custom_color = st.color_picker("Pilih Warna:", "#00FF00")
 
+    if st.button("🪄 Bersihkan Foto Sekarang", type="primary"):
+        with st.spinner("Menghubungi server remove.bg untuk hasil sempurna..."):
+            # Karena API butuh file mentah, kita kirim ulang bytes-nya
+            uploaded_file.seek(0)
+            result_bytes = remove_bg_api(uploaded_file)
+            
+            if result_bytes:
+                # Proses hasil dari API
+                foreground = Image.open(io.BytesIO(result_bytes)).convert("RGBA")
+                
+                if bg_choice == "Transparan":
+                    final_image = foreground
+                else:
+                    # Buat latar warna solid
+                    background = Image.new("RGBA", foreground.size, custom_color)
+                    background.paste(foreground, (0, 0), foreground)
+                    final_image = background
+                
+                st.success("Selesai! Hasil jauh lebih rapi, kan?")
+                st.image(final_image, caption="Hasil Kualitas Ultra", width="stretch")
+                
+                # Tombol Download
+                buf = io.BytesIO()
+                final_image.save(buf, format="PNG")
+                st.download_button("📥 Download Hasil HD", data=buf.getvalue(), file_name="hasil_ultra.png", mime="image/png")
 
+st.info("Info: Menggunakan API eksternal lebih akurat dalam membedakan warna baju dengan benda di sekitarnya.")
