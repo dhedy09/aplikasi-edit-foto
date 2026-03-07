@@ -5,6 +5,31 @@ import io
 
 # --- KONFIGURASI HALAMAN ---
 st.set_page_config(page_title="Studio Foto AI Ultra", layout="centered")
+
+# --- SISTEM LOGIN (KATA SANDI) ---
+# Cek apakah pengguna sudah login
+if "authenticated" not in st.session_state:
+    st.session_state.authenticated = False
+
+# Jika belum login, tampilkan halaman Login dan HENTIKAN kode di bawahnya
+if not st.session_state.authenticated:
+    st.title("🔒 Akses Terbatas")
+    st.write("Aplikasi ini bersifat privat. Silakan masukkan kata sandi untuk melanjutkan.")
+    
+    password_input = st.text_input("Kata Sandi:", type="password")
+    if st.button("Masuk"):
+        if password_input == st.secrets["APP_PASSWORD"]:
+            st.session_state.authenticated = True
+            st.rerun() # Refresh halaman agar masuk ke aplikasi utama
+        else:
+            st.error("❌ Kata sandi salah!")
+            
+    st.stop() # Ini penting! Menghentikan Streamlit agar tidak membaca kode di bawah ini
+
+# ==========================================
+# JIKA BERHASIL LOGIN, KODE DI BAWAH INI JALAN
+# ==========================================
+
 st.title("🚀 Studio Foto AI Ultra")
 st.write("Powered by Remove.bg. Kualitas industri, hasil potongan super bersih!")
 
@@ -19,19 +44,23 @@ if 'last_uploaded_id' not in st.session_state:
 
 # --- FUNGSI MEMBERSIHKAN MEMORI ---
 def bersihkan_memori():
-    """Fungsi untuk menghapus cache gambar dari RAM Server"""
     st.session_state.fg_image = None
     st.session_state.last_uploaded_id = None
 
-# --- SIDEBAR: PENGATURAN SERVER ---
+# --- SIDEBAR: PENGATURAN SERVER & LOGOUT ---
 with st.sidebar:
     st.header("⚙️ Sistem & Memori")
-    st.write("Jika Anda sudah selesai mengedit, bersihkan memori agar aplikasi tetap cepat dan tidak membebani server (Cloud).")
-    
-    # Tombol ini akan memanggil fungsi bersihkan_memori() saat ditekan
+    st.write("Bersihkan memori agar aplikasi tetap cepat.")
     if st.button("🗑️ Bersihkan Memori", use_container_width=True, type="secondary"):
         bersihkan_memori()
         st.success("Memori RAM server berhasil dikosongkan! 🚀")
+        
+    st.markdown("---")
+    # Tombol Logout jika pengguna ingin keluar
+    if st.button("🚪 Keluar (Logout)", use_container_width=True):
+        st.session_state.authenticated = False
+        bersihkan_memori()
+        st.rerun()
 
 # --- FUNGSI INTI API ---
 def remove_bg_api(image_file):
@@ -47,28 +76,24 @@ def remove_bg_api(image_file):
         st.error(f"Terjadi kesalahan API: {response.status_code} - {response.text}")
         return None
 
-# --- UI APLIKASI ---
+# --- UI APLIKASI UTAMA ---
 uploaded_file = st.file_uploader("Unggah foto utama...", type=["jpg", "png", "jpeg"])
 
 if uploaded_file:
-    # Cek apakah pengguna mengunggah foto baru. Jika ya, reset memori otomatis untuk foto baru.
     if st.session_state.last_uploaded_id != uploaded_file.file_id:
         bersihkan_memori()
         st.session_state.last_uploaded_id = uploaded_file.file_id
 
-    # Tampilkan Foto Asli
     img_original = Image.open(uploaded_file).convert("RGBA")
     st.image(img_original, caption="Foto Asli", use_container_width=True)
     
     st.markdown("---")
     
-    # Pilihan Tipe Latar
     bg_type = st.radio("Pilih Latar Belakang Baru:", ["Transparan", "Ganti Warna", "Gambar Pemandangan"], horizontal=True)
     
     selected_color = "#FFFFFF"
     bg_image_file = None
     
-    # Logika Input berdasarkan pilihan
     if bg_type == "Ganti Warna":
         selected_color = st.color_picker("Pilih Warna Latar:", "#0071C5")
     elif bg_type == "Gambar Pemandangan":
@@ -78,7 +103,6 @@ if uploaded_file:
         if bg_type == "Gambar Pemandangan" and not bg_image_file:
             st.warning("⚠️ Harap unggah gambar pemandangan terlebih dahulu sebelum memproses!")
         else:
-            # LANGKAH 1: Potong Latar (Hanya panggil API jika belum ada di memori)
             if st.session_state.fg_image is None:
                 with st.spinner("AI sedang memotong foto dengan akurasi piksel..."):
                     uploaded_file.seek(0)
@@ -87,7 +111,6 @@ if uploaded_file:
                     if result_bytes:
                         st.session_state.fg_image = Image.open(io.BytesIO(result_bytes)).convert("RGBA")
             
-            # LANGKAH 2: Terapkan Latar Belakang Baru
             if st.session_state.fg_image:
                 fg = st.session_state.fg_image
                 final_img = fg.copy()
@@ -107,7 +130,6 @@ if uploaded_file:
                 st.success("Selesai! Hasil editan siap diunduh.")
                 st.image(final_img, caption="Hasil Akhir Kualitas HD", use_container_width=True)
                 
-                # Tombol Download
                 buf = io.BytesIO()
                 final_img.save(buf, format="PNG")
                 st.download_button("📥 Download Hasil HD", data=buf.getvalue(), file_name="hasil_edit_ultra.png", mime="image/png")
