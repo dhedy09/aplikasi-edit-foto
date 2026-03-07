@@ -16,13 +16,19 @@ if not st.session_state.authenticated:
     st.title("🔒 Akses Terbatas")
     st.write("Aplikasi ini bersifat privat. Silakan masukkan kata sandi untuk melanjutkan.")
     
-    password_input = st.text_input("Kata Sandi:", type="password")
-    if st.button("Masuk"):
-        if password_input == st.secrets["APP_PASSWORD"]: 
-            st.session_state.authenticated = True
-            st.rerun()
-        else:
-            st.error("❌ Kata sandi salah!")
+    # Membungkus input dan tombol ke dalam st.form agar bisa pakai 'Enter'
+    with st.form("login_form"):
+        password_input = st.text_input("Kata Sandi:", type="password")
+        
+        # st.button diganti menjadi st.form_submit_button
+        tombol_masuk = st.form_submit_button("Masuk")
+        
+        if tombol_masuk:
+            if password_input == st.secrets["APP_PASSWORD"]: 
+                st.session_state.authenticated = True
+                st.rerun()
+            else:
+                st.error("❌ Kata sandi salah!")
     st.stop()
 
 # ==========================================
@@ -329,6 +335,7 @@ with tab5:
                     type="primary",
                     use_container_width=True
                 )
+
 
 
 
