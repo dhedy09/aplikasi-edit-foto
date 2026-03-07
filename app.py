@@ -4,6 +4,7 @@ from PIL import Image, ImageOps, ImageEnhance, ImageFilter, ImageDraw, ImageFont
 from datetime import datetime
 from geopy.geocoders import Nominatim
 import io
+import numpy as np
 
 # --- KONFIGURASI HALAMAN ---
 st.set_page_config(page_title="Studio AI Ultra", layout="centered", page_icon="✨")
@@ -67,8 +68,7 @@ with st.sidebar:
 
 # --- NAVIGASI MODERN (TABS) ---
 st.title("✨ STUDIO FOTO MAMAYO")
-# tab1, tab2, tab3, tab4, tab5 = st.tabs(["✂️ Hapus Latar", "🗜️ Kompres", "🎨 Warna", "🔄 Format", "🪄 Filter"])
-tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs(["✂️ Latar", "🗜️ Kompres", "🎨 Warna", "🔄 Format", "🪄 Filter", "🖨️ Cetak Foto", "📑 Lampiran SPJ"])
+tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8 = st.tabs(["✂️ Ganti Latar", "🗜️ Kompres", "🎨 Warna", "🔄 Format", "🪄 Filter", "🖨️ Cetak Foto", "📑 Lampiran SPJ", "✍️ Ekstrak TTD"])
 
 # ==========================================
 # TAB 1: HAPUS LATAR (AI)
@@ -628,6 +628,79 @@ with tab7:
                         type="primary", 
                         use_container_width=True
                     )
+
+# ==========================================
+# TAB 8: EKSTRAKTOR TANDA TANGAN & STEMPEL
+# ==========================================
+with tab8:
+    st.write("Ubah foto tanda tangan atau stempel di kertas menjadi gambar transparan (PNG) siap tempel di dokumen.")
+    
+    ttd_file = st.file_uploader("Unggah Foto Tanda Tangan / Stempel...", type=["jpg", "png", "jpeg"], key="upload_ttd")
+    
+    if ttd_file:
+        img_ttd_asli = Image.open(ttd_file).convert("RGBA")
+        
+        col_asli, col_hasil = st.columns(2)
+        
+        with col_asli:
+            st.markdown("**📷 Foto Asli**")
+            st.image(img_ttd_asli, use_container_width=True)
+            
+        st.markdown("---")
+        st.markdown("### ⚙️ Pengaturan Ekstraksi")
+        st.info("💡 Geser tuas di bawah ini sampai latar belakang kertas hilang dan tinta terlihat jelas.")
+        
+        # Kontrol interaktif
+        col_set1, col_set2 = st.columns(2)
+        with col_set1:
+            toleransi = st.slider("Toleransi Penghapus Kertas", min_value=0, max_value=255, value=200, help="Semakin tinggi, semakin banyak bagian terang (kertas) yang dihapus.")
+        with col_set2:
+            kontras = st.slider("Tebalkan Tinta (Kontras)", min_value=1.0, max_value=5.0, value=2.0, step=0.1, help="Menebalkan warna tinta agar tidak pudar setelah kertas dihapus.")
+            
+        # Proses Gambar
+        with st.spinner("Memproses transparansi..."):
+            # 1. Tingkatkan kontras dulu agar tinta makin pekat dan kertas makin putih
+            enhancer = ImageEnhance.Contrast(img_ttd_asli)
+            img_kontras = enhancer.enhance(kontras)
+            
+            # 2. Ubah gambar ke format array angka (NumPy) untuk manipulasi piksel
+            data_piksel = np.array(img_kontras)
+            
+            # Pisahkan warna Red, Green, Blue
+            r = data_piksel[:, :, 0]
+            g = data_piksel[:, :, 1]
+            b = data_piksel[:, :, 2]
+            
+            # Hitung tingkat kecerahan setiap piksel (Grayscale / Luma)
+            # Rumus standar kecerahan gambar
+            kecerahan = (0.299 * r) + (0.587 * g) + (0.114 * b)
+            
+            # 3. Kunci utamanya: Jika kecerahan piksel LEBIH BESAR dari toleransi, jadikan transparan (Alpha = 0)
+            # Jika LEBIH KECIL (berarti itu tinta gelap), biarkan tetap solid (Alpha = 255)
+            alpha_channel = np.where(kecerahan > toleransi, 0, 255).astype(np.uint8)
+            
+            # Terapkan transparansi ke gambar
+            data_piksel[:, :, 3] = alpha_channel
+            
+            # Kembalikan array angka menjadi gambar
+            img_hasil_ttd = Image.fromarray(data_piksel)
+            
+        with col_hasil:
+            st.markdown("**✨ Hasil Transparan**")
+            # Tampilkan gambar di Streamlit (Streamlit otomatis memberi latar belakang kotak-kotak/gelap untuk PNG transparan)
+            st.image(img_hasil_ttd, use_container_width=True)
+            
+        # Tombol Download
+        buf_ttd = io.BytesIO()
+        img_hasil_ttd.save(buf_ttd, format="PNG")
+        st.download_button(
+            label="📥 Download Tanda Tangan (PNG Transparan)", 
+            data=buf_ttd.getvalue(), 
+            file_name="Tanda_Tangan_Transparan.png", 
+            mime="image/png", 
+            type="primary", 
+            use_container_width=True
+        )
 
 
 
