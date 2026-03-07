@@ -4,7 +4,7 @@ from PIL import Image, ImageOps
 import io
 
 # --- KONFIGURASI HALAMAN ---
-st.set_page_config(page_title="Studio Foto AI Ultra", layout="centered")
+st.set_page_config(page_title="Studio AI Ultra", layout="centered", page_icon="✨")
 
 # --- SISTEM LOGIN (KATA SANDI) ---
 if "authenticated" not in st.session_state:
@@ -16,8 +16,6 @@ if not st.session_state.authenticated:
     
     password_input = st.text_input("Kata Sandi:", type="password")
     if st.button("Masuk"):
-        # Cek kata sandi. Gunakan st.secrets["APP_PASSWORD"] jika di cloud, 
-        # atau ganti langsung dengan string "sandi_anda" jika di lokal.
         if password_input == st.secrets["APP_PASSWORD"]: 
             st.session_state.authenticated = True
             st.rerun()
@@ -29,10 +27,8 @@ if not st.session_state.authenticated:
 # JIKA BERHASIL LOGIN, APLIKASI UTAMA JALAN
 # ==========================================
 
-# Ambil API Key dari Streamlit Secrets
 REMOVE_BG_API_KEY = st.secrets["REMOVE_BG_API_KEY"]
 
-# --- INISIALISASI SESSION STATE ---
 if 'fg_image' not in st.session_state:
     st.session_state.fg_image = None
 if 'last_uploaded_id' not in st.session_state:
@@ -42,36 +38,34 @@ def bersihkan_memori():
     st.session_state.fg_image = None
     st.session_state.last_uploaded_id = None
 
-# --- FUNGSI FORMAT UKURAN FILE ---
 def format_size(size_in_bytes):
-    """Mengubah ukuran bytes menjadi KB atau MB agar mudah dibaca"""
+    """Mengubah ukuran bytes menjadi KB atau MB"""
     if size_in_bytes < 1024 * 1024:
         return f"{size_in_bytes / 1024:.2f} KB"
     else:
         return f"{size_in_bytes / (1024 * 1024):.2f} MB"
 
-# --- MENU NAVIGASI (SIDEBAR) ---
+# --- SIDEBAR: PENGATURAN MINIMALIS ---
 with st.sidebar:
-    st.title("🧰 Menu Studio")
-    pilihan_menu = st.radio("Pilih Fitur:", ["✂️ Hapus Latar (AI)", "🗜️ Kompresor Foto"])
-    
-    st.markdown("---")
-    st.header("⚙️ Sistem & Memori")
-    if st.button("🗑️ Bersihkan Memori", use_container_width=True, type="secondary"):
+    st.caption("🔧 Pengaturan Sistem")
+    if st.button("🗑️ Bersihkan Memori RAM", use_container_width=True):
         bersihkan_memori()
-        st.success("Memori RAM bersih! 🚀")
+        st.success("RAM bersih! 🚀")
         
-    if st.button("🚪 Keluar (Logout)", use_container_width=True):
+    if st.button("🚪 Keluar (Logout)", use_container_width=True, type="secondary"):
         st.session_state.authenticated = False
         bersihkan_memori()
         st.rerun()
 
+# --- NAVIGASI MODERN (TABS) ---
+st.title("✨ Studio Multatuli AI")
+tab1, tab2 = st.tabs(["✂️ AI Background Remover", "🗜️ Smart Image Compressor"])
+
 # ==========================================
-# HALAMAN 1: HAPUS LATAR (AI)
+# TAB 1: HAPUS LATAR (AI)
 # ==========================================
-if pilihan_menu == "✂️ Hapus Latar (AI)":
-    st.title("🚀 Hapus Latar Belakang AI")
-    st.write("Powered by Remove.bg. Hasil potongan super bersih!")
+with tab1:
+    st.write("Kualitas industri, potongan super rapi dengan tenaga AI.")
 
     def remove_bg_api(image_file):
         response = requests.post(
@@ -83,10 +77,10 @@ if pilihan_menu == "✂️ Hapus Latar (AI)":
         if response.status_code == requests.codes.ok:
             return response.content
         else:
-            st.error(f"Terjadi kesalahan API: {response.status_code} - {response.text}")
+            st.error(f"Error API: {response.status_code} - {response.text}")
             return None
 
-    uploaded_file = st.file_uploader("Unggah foto utama...", type=["jpg", "png", "jpeg"], key="upload_bg")
+    uploaded_file = st.file_uploader("Unggah foto...", type=["jpg", "png", "jpeg"], key="upload_bg")
 
     if uploaded_file:
         if st.session_state.last_uploaded_id != uploaded_file.file_id:
@@ -103,9 +97,9 @@ if pilihan_menu == "✂️ Hapus Latar (AI)":
         if bg_type == "Ganti Warna":
             selected_color = st.color_picker("Pilih Warna Latar:", "#0071C5")
         elif bg_type == "Gambar Pemandangan":
-            bg_image_file = st.file_uploader("Unggah Gambar Pemandangan...", type=["jpg", "png", "jpeg"])
+            bg_image_file = st.file_uploader("Unggah Pemandangan...", type=["jpg", "png", "jpeg"])
             
-        if st.button("🪄 Proses Foto Kualitas Ultra", type="primary"):
+        if st.button("🪄 Proses Kualitas Ultra", type="primary"):
             if bg_type == "Gambar Pemandangan" and not bg_image_file:
                 st.warning("⚠️ Harap unggah gambar pemandangan terlebih dahulu!")
             else:
@@ -131,57 +125,57 @@ if pilihan_menu == "✂️ Hapus Latar (AI)":
                             bg_img.paste(fg, (0, 0), fg)
                             final_img = bg_img
                             
-                    st.success("Selesai! Hasil editan siap diunduh.")
+                    st.success("Selesai!")
                     st.image(final_img, caption="Hasil Akhir", use_container_width=True)
                     
                     buf = io.BytesIO()
                     final_img.save(buf, format="PNG")
-                    st.download_button("📥 Download Hasil HD", data=buf.getvalue(), file_name="hasil_edit_ultra.png", mime="image/png")
+                    st.download_button("📥 Download Hasil HD", data=buf.getvalue(), file_name="hapus_latar_hd.png", mime="image/png")
 
 # ==========================================
-# HALAMAN 2: KOMPRESOR FOTO
+# TAB 2: KOMPRESOR FOTO (REAL-TIME)
 # ==========================================
-elif pilihan_menu == "🗜️ Kompresor Foto":
-    st.title("🗜️ Kompresor Foto Cerdas")
-    st.write("Kecilkan ukuran file MB menjadi KB tanpa internet (100% Gratis Tanpa API).")
+with tab2:
+    st.write("Kecilkan ukuran file secara *real-time* tanpa mengurangi kualitas secara drastis.")
 
-    compress_file = st.file_uploader("Unggah foto yang ingin dikecilkan ukurannya...", type=["jpg", "png", "jpeg"], key="upload_compress")
+    compress_file = st.file_uploader("Unggah foto yang ingin dikompres...", type=["jpg", "png", "jpeg"], key="upload_compress")
 
     if compress_file:
-        # Hitung ukuran asli
         original_size = len(compress_file.getvalue())
+        img = Image.open(compress_file)
         
-        st.write(f"**Ukuran Asli:** {format_size(original_size)}")
+        # Konversi ke RGB agar bisa disimpan sebagai JPEG yang ringan
+        if img.mode in ("RGBA", "P"):
+            img = img.convert("RGB")
+            
+        st.markdown("---")
+        st.write("🎚️ **Geser slider di bawah ini untuk melihat perubahan ukuran secara instan!**")
         
-        # Slider Kualitas
-        st.write("---")
-        kualitas = st.slider("Pilih Tingkat Kualitas (1-100):", min_value=1, max_value=100, value=70, step=1, 
-                             help="Semakin kecil angkanya, ukuran file makin kecil tapi gambar mungkin sedikit buram.")
+        # Slider yang memicu perubahan real-time
+        kualitas = st.slider(
+            "Tingkat Kualitas Gambar", 
+            min_value=1, max_value=100, value=75, step=1
+        )
         
-        if st.button("🗜️ Mulai Kompresi", type="primary"):
-            with st.spinner("Mengecilkan ukuran..."):
-                img = Image.open(compress_file)
-                
-                # Ubah ke RGB (wajib untuk format JPEG)
-                if img.mode in ("RGBA", "P"):
-                    img = img.convert("RGB")
-                
-                # Proses Kompresi
-                buf_compress = io.BytesIO()
-                # Simpan sebagai JPEG untuk kompresi terbaik
-                img.save(buf_compress, format="JPEG", quality=kualitas, optimize=True)
-                compressed_size = len(buf_compress.getvalue())
-                
-                st.success("Kompresi Berhasil! 🎉")
-                
-                # Tampilkan perbandingan ukuran
-                col1, col2 = st.columns(2)
-                col1.metric("Ukuran Asli", format_size(original_size))
-                col2.metric("Ukuran Baru", format_size(compressed_size), delta=f"-{format_size(original_size - compressed_size)}", delta_color="inverse")
-                
-                st.download_button(
-                    label="📥 Download Foto Terkompresi",
-                    data=buf_compress.getvalue(),
-                    file_name="hasil_kompres.jpg",
-                    mime="image/jpeg"
-                )
+        # PROSES OTOMATIS TANPA TOMBOL
+        buf_compress = io.BytesIO()
+        img.save(buf_compress, format="JPEG", quality=kualitas, optimize=True)
+        compressed_size = len(buf_compress.getvalue())
+        
+        # Tampilkan Metrik Real-Time
+        col1, col2 = st.columns(2)
+        col1.metric("📦 Ukuran Asli", format_size(original_size))
+        
+        # Beri warna merah jika hasil kompresi ternyata lebih besar (jarang terjadi, tapi mungkin jika kualitas 100)
+        delta_val = original_size - compressed_size
+        delta_color = "normal" if delta_val > 0 else "inverse"
+        col2.metric("⚡ Ukuran Baru", format_size(compressed_size), delta=f"{format_size(abs(delta_val))} {'lebih kecil' if delta_val > 0 else 'lebih besar'}", delta_color=delta_color)
+        
+        st.download_button(
+            label="📥 Download Foto Terkompresi",
+            data=buf_compress.getvalue(),
+            file_name=f"kompres_{kualitas}.jpg",
+            mime="image/jpeg",
+            type="primary",
+            use_container_width=True
+        )
