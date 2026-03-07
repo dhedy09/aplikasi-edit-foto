@@ -24,7 +24,7 @@ def process_remove_bg(image_input):
     res_bytes = remove(
         img_byte.getvalue(),
         session=get_human_model(),
-        alpha_matting=False
+        alpha_matting=False,
         post_process_mask=True
     )
     return Image.open(io.BytesIO(res_bytes)).convert("RGBA")
@@ -102,4 +102,5 @@ with tab2:
                 buf2 = io.BytesIO()
                 bg_blurred.save(buf2, format="PNG")
                 st.download_button("📥 Download Hasil Blur", data=buf2.getvalue(), file_name="hasil_blur.png", mime="image/png")
+
 
