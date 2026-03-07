@@ -71,7 +71,6 @@ if st.session_state.authenticated:
             else:
                 with st.spinner("Memproses ribuan baris data Excel..."):
                     try:
-                        import openpyxl
                         
                         # Baca file excel dari memori (bukan path folder)
                         wb = openpyxl.load_workbook(file_excel)
@@ -121,4 +120,5 @@ if st.session_state.authenticated:
                         )
                         
                     except Exception as e:
+
                         st.error(f"❌ Terjadi kesalahan saat membaca file: {e}")
