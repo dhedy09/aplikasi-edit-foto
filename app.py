@@ -59,7 +59,7 @@ with st.sidebar:
 
 # --- NAVIGASI MODERN (TABS) ---
 st.title("✨ Studio Multatuli AI")
-tab1, tab2 = st.tabs(["✂️ AI Background Remover", "🗜️ Smart Image Compressor"])
+tab1, tab2 = st.tabs(["✂️ Hapus Background", "🗜️Kompres Gambar"])
 
 # ==========================================
 # TAB 1: HAPUS LATAR (AI)
@@ -179,3 +179,4 @@ with tab2:
             type="primary",
             use_container_width=True
         )
+
