@@ -678,68 +678,35 @@ with tab8:
     ttd_file = st.file_uploader("Unggah Foto Tanda Tangan / Stempel...", type=["jpg", "png", "jpeg"], key="upload_ttd")
     
     if ttd_file:
-        # 1. Buka dan perbaiki rotasi (EXIF)
+        # 1. Buka dan putar sesuai orientasi kamera asli
         img_raw = Image.open(ttd_file)
         img_raw = ImageOps.exif_transpose(img_raw)
-        
-        # Pastikan gambar memiliki format RGB yang benar (hindari bug warna)
-        if img_raw.mode in ('RGBA', 'LA') or (img_raw.mode == 'P' and 'transparency' in img_raw.info):
-            bg = Image.new("RGB", img_raw.size, (255, 255, 255))
-            bg.paste(img_raw, mask=img_raw.convert('RGBA').split()[3])
-            img_ready = bg
-        else:
-            img_ready = img_raw.convert("RGB")
+        img_ready = img_raw.convert("RGB")
             
-        # --- FIX BUG KOORDINAT CROP MELESET ---
-        # Kita batasi ukuran maksimal gambar menjadi 1200px agar browser tidak bingung
-        # menghitung koordinat kotak biru saat gambar dari HP terlalu raksasa.
-        img_ready.thumbnail((1200, 1200), Image.Resampling.LANCZOS)
+        # 2. JURUS AMPUH ANTI-MELESET: 
+        # Kita kecilkan gambarnya agar pas dengan layar, lalu kita "Cuci Bersih"
+        # dengan menyimpannya ke memori sementara (menghapus semua metadata kamera/EXIF).
+        img_ready.thumbnail((700, 700), Image.Resampling.LANCZOS)
         
-        # --- UI BERSAMPINGAN (KOLOM KIRI & KANAN) ---
-        col_kiri, col_kanan = st.columns([1, 1], gap="large")
+        temp_io = io.BytesIO()
+        img_ready.save(temp_io, format="PNG") # Simpan sebagai PNG murni
+        img_bersih = Image.open(temp_io)      # Buka kembali gambar yang sudah bersih
+        
+        # --- UI GAMBAR BERSAMPINGAN ---
+        col_kiri, col_kanan = st.columns(2, gap="medium")
         
         with col_kiri:
-            st.markdown("### ✂️ 1. Area Potong (Crop)")
-            st.info("Atur kotak biru di bawah untuk mengambil area tanda tangannya saja.")
-            
-            # Alat crop ada di sebelah kiri
-            cropped_img = st_cropper(img_ready, realtime_update=False, box_color='#0066cc', aspect_ratio=None, key="cropper_ttd")
+            st.markdown("### 📷 1. Potong (Crop)")
+            # Alat crop menggunakan gambar yang sudah "dicuci bersih"
+            cropped_img = st_cropper(img_bersih, realtime_update=False, box_color='#0066cc', aspect_ratio=None)
             
         with col_kanan:
-            st.markdown("### ⚙️ 2. Pengaturan & Hasil")
-            
-            # Tuas pengaturan ada di sebelah kanan
-            col_t, col_k = st.columns(2)
-            with col_t:
-                toleransi = st.slider("Penghapus Kertas", min_value=0, max_value=255, value=200)
-            with col_k:
-                kontras = st.slider("Tebalkan Tinta", min_value=1.0, max_value=5.0, value=2.0, step=0.1)
-                
-            # Tombol Proses di sebelah kanan
-            if st.button("✨ PROSES TANDA TANGAN", type="primary", use_container_width=True):
-                with st.spinner("Memproses transparansi..."):
-                    img_crop_rgba = cropped_img.convert("RGBA")
-                    enhancer = ImageEnhance.Contrast(img_crop_rgba)
-                    img_kontras = enhancer.enhance(kontras)
-                    
-                    data_piksel = np.array(img_kontras)
-                    r, g, b = data_piksel[:, :, 0], data_piksel[:, :, 1], data_piksel[:, :, 2]
-                    kecerahan = (0.299 * r) + (0.587 * g) + (0.114 * b)
-                    
-                    alpha_channel = np.where(kecerahan > toleransi, 0, 255).astype(np.uint8)
-                    data_piksel[:, :, 3] = alpha_channel
-                    
-                    # Simpan ke memori
-                    st.session_state['hasil_ttd_final'] = Image.fromarray(data_piksel)
-                    
-            # Tampilkan hasil dan tombol download di sebelah kanan
+            st.markdown("### ✨ 2. Hasil Transparan")
+            # Tempat penampungan hasil (akan muncul jika tombol proses diklik)
             if 'hasil_ttd_final' in st.session_state:
-                st.markdown("---")
-                st.markdown("**✨ Hasil Akhir (Transparan):**")
-                
-                # Tampilkan gambar hasil di dalam kolom kanan
                 st.image(st.session_state['hasil_ttd_final'], use_container_width=True)
                 
+                # Tombol download diletakkan tepat di bawah hasilnya
                 buf_ttd = io.BytesIO()
                 st.session_state['hasil_ttd_final'].save(buf_ttd, format="PNG")
                 
@@ -747,13 +714,42 @@ with tab8:
                 waktu_sekarang = datetime.now().strftime("%Y%m%d_%H%M%S")
                 
                 st.download_button(
-                    label="📥 Download (PNG Transparan)", 
+                    label="📥 Download PNG", 
                     data=buf_ttd.getvalue(), 
                     file_name=f"TTD_{waktu_sekarang}.png", 
                     mime="image/png", 
                     type="primary", 
                     use_container_width=True
                 )
+            else:
+                st.info("Atur kotak biru di sebelah kiri, lalu klik tombol PROSES di bawah untuk melihat hasil di sini.")
+
+        # --- UI PENGATURAN & TOMBOL DI BAWAH ---
+        st.markdown("---")
+        st.markdown("### ⚙️ Pengaturan Ketajaman Tinta")
+        
+        col_set1, col_set2 = st.columns(2)
+        with col_set1:
+            toleransi = st.slider("Toleransi Penghapus Kertas", min_value=0, max_value=255, value=200, help="Geser ke kanan jika latar kertas masih terlihat kotor/abu-abu.")
+        with col_set2:
+            kontras = st.slider("Tebalkan Tinta (Kontras)", min_value=1.0, max_value=5.0, value=2.0, step=0.1, help="Geser ke kanan agar tinta pulpen/stempel makin pekat.")
+            
+        if st.button("✨ PROSES & LIHAT HASIL", type="primary", use_container_width=True):
+            with st.spinner("Menghapus latar belakang kertas..."):
+                img_crop_rgba = cropped_img.convert("RGBA")
+                enhancer = ImageEnhance.Contrast(img_crop_rgba)
+                img_kontras = enhancer.enhance(kontras)
+                
+                data_piksel = np.array(img_kontras)
+                r, g, b = data_piksel[:, :, 0], data_piksel[:, :, 1], data_piksel[:, :, 2]
+                kecerahan = (0.299 * r) + (0.587 * g) + (0.114 * b)
+                
+                alpha_channel = np.where(kecerahan > toleransi, 0, 255).astype(np.uint8)
+                data_piksel[:, :, 3] = alpha_channel
+                
+                # Simpan hasil ke memori agar muncul di kolom kanan
+                st.session_state['hasil_ttd_final'] = Image.fromarray(data_piksel)
+                st.rerun() # Refresh agar gambar langsung muncul di kanan
         
 # --- FOOTER APLIKASI ---
 st.markdown("---")
@@ -764,6 +760,7 @@ st.markdown(
     "</div>", 
     unsafe_allow_html=True
 )
+
 
 
 
