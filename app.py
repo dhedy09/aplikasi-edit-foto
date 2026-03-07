@@ -739,96 +739,85 @@ with tab8:
 # TAB 9: ALAT PDF POWERFUL (KOMPRES & GABUNG)
 # ==========================================
 with tab9:
-    st.write("Alat super cepat untuk mengecilkan ukuran PDF dan menggabungkan banyak PDF menjadi satu dokumen utuh.")
+    st.write("Alat super cepat dan AMAN untuk mengecilkan ukuran PDF serta menggabungkan dokumen.")
     
+    # Sub-menu
     mode_pdf = st.radio("Pilih Mode Alat PDF:", ["🗜️ Kompres Ukuran PDF", "🔗 Gabungkan Banyak PDF"], horizontal=True)
     st.markdown("---")
     
     # ----------------------------------------
-    # FITUR 1: KOMPRES PDF (DENGAN TUAS RASTERISASI)
+    # FITUR 1: KOMPRES PDF (SAFE MODE - LOSSLESS)
     # ----------------------------------------
     if mode_pdf == "🗜️ Kompres Ukuran PDF":
-        st.markdown("### 🗜️ Kompresor PDF Pintar")
-        st.info("💡 **Cara Kerja:** Mode ini sangat cocok untuk PDF hasil scan/SPJ. Mengubah halaman menjadi gambar terkompresi sehingga ukurannya bisa turun drastis!")
+        st.markdown("### 🗜️ Kompresor PDF Pintar (Lossless)")
+        st.info("💡 **Cara Kerja:** Menghapus data sampah (metadata, font ganda, objek mati) di dalam file tanpa memburamkan teks/gambar sama sekali. Aman 100% untuk SPJ.")
         
         file_pdf_kompres = st.file_uploader("Unggah 1 File PDF...", type=["pdf"], key="pdf_compress")
         
         if file_pdf_kompres:
+            # Hitung ukuran asli
             bytes_asli = file_pdf_kompres.getvalue()
             ukuran_asli_mb = len(bytes_asli) / (1024 * 1024)
             
-            st.markdown(f"**📄 File:** `{file_pdf_kompres.name}` | **📦 Ukuran Asli:** `{ukuran_asli_mb:.2f} MB`")
+            st.markdown(f"**📄 Nama File:** `{file_pdf_kompres.name}`")
             
-            # --- TUAS KOMPRESI PDF ---
-            kualitas_pdf = st.slider(
-                "Tuas Kualitas PDF (Skala Ketajaman)", 
-                min_value=30, max_value=100, value=70, step=10,
-                help="Semakin kecil nilainya, ukuran file semakin ringan namun tulisan sedikit lebih buram."
-            )
-            
-            if st.button("🗜️ MULAI KOMPRES PDF", type="primary", use_container_width=True):
-                with st.spinner("Memotret dan memeras ulang isi PDF... (Mungkin butuh beberapa detik)"):
+            if st.button("🗜️ BERSIHKAN & KOMPRES PDF", type="primary", use_container_width=True):
+                with st.spinner("Menyapu metadata dan merapatkan struktur PDF..."):
                     try:
-                        # Buka PDF asli
-                        doc_asli = fitz.open(stream=bytes_asli, filetype="pdf")
+                        # Buka PDF
+                        doc = fitz.open(stream=bytes_asli, filetype="pdf")
                         
-                        # Buat PDF kosong baru untuk menampung hasil
-                        pdf_baru = fitz.open()
-                        
-                        # Hitung skala berdasarkan tuas (100 = skala 2.0 (tajam), 30 = skala 0.6 (buram))
-                        zoom = (kualitas_pdf / 100) * 2.0
-                        mat = fitz.Matrix(zoom, zoom)
-                        
-                        # Loop: Ubah setiap halaman jadi gambar, lalu masukkan ke PDF baru
-                        for page in doc_asli:
-                            # Ubah halaman jadi gambar (pixmap)
-                            pix = page.get_pixmap(matrix=mat, alpha=False)
-                            # Konversi ke byte JPG (kualitas 75 standar)
-                            img_bytes = pix.tobytes("jpeg")
-                            
-                            # Jadikan halaman PDF lagi
-                            img_pdf = fitz.open("pdf", fitz.open(stream=img_bytes, filetype="jpeg").convert_to_pdf())
-                            pdf_baru.insert_pdf(img_pdf)
-                            
-                        # Simpan hasil akhir
-                        hasil_bytes = pdf_baru.tobytes(garbage=4, deflate=True)
+                        # KOMPRESI AMAN (Tanpa memburamkan gambar)
+                        # garbage=4 : Hapus objek duplikat
+                        # deflate=True : Kompres aliran teks/vektor
+                        # clean=True : Bersihkan sintaks PDF dari kode usang
+                        hasil_bytes = doc.tobytes(garbage=4, deflate=True, clean=True)
                         
                         ukuran_baru_mb = len(hasil_bytes) / (1024 * 1024)
                         
-                        # Cegah error matematika jika ukuran tidak masuk akal
+                        # Hitung persentase penghematan
                         if ukuran_asli_mb > 0:
                             penghematan = 100 - ((ukuran_baru_mb / ukuran_asli_mb) * 100)
                         else:
                             penghematan = 0
                             
-                        st.success("✅ Kompresi Berhasil!")
+                        # Mencegah nilai minus jika file tidak bisa dikompres lagi
+                        if penghematan < 0:
+                            penghematan = 0
+                            ukuran_baru_mb = ukuran_asli_mb
+                            hasil_bytes = bytes_asli # Kembalikan file asli agar tidak bengkak
+                            
+                        st.success("✅ Proses Selesai! Tidak ada visual yang diburamkan.")
                         
-                        # Metrik Label Status
+                        # Tampilkan Metrik
                         col_metrik1, col_metrik2, col_metrik3 = st.columns(3)
                         col_metrik1.metric(label="Ukuran Asli", value=f"{ukuran_asli_mb:.2f} MB")
-                        col_metrik2.metric(label="Ukuran Baru", value=f"{ukuran_baru_mb:.2f} MB", delta=f"{penghematan:.1f}%", delta_color="inverse")
+                        col_metrik2.metric(label="Ukuran Baru", value=f"{ukuran_baru_mb:.2f} MB", delta=f"-{penghematan:.2f}%", delta_color="inverse")
+                        
+                        if penghematan < 1.0:
+                            st.warning("⚠️ Ukuran nyaris tidak berubah karena PDF Anda sudah sangat padat/terkompresi dari asalnya.")
                         
                         # Tombol Download
                         from datetime import datetime
                         waktu = datetime.now().strftime("%H%M%S")
                         
                         st.download_button(
-                            label="📥 Download PDF Ringan",
+                            label="📥 Download PDF Bersih",
                             data=hasil_bytes,
-                            file_name=f"Ringan_{kualitas_pdf}_{file_pdf_kompres.name}",
+                            file_name=f"Opt_{waktu}_{file_pdf_kompres.name}",
                             mime="application/pdf",
                             type="primary",
                             use_container_width=True
                         )
                     except Exception as e:
-                        st.error(f"Terjadi kesalahan saat mengompres: {e}")
+                        st.error(f"Terjadi kesalahan: {e}")
 
     # ----------------------------------------
     # FITUR 2: GABUNG PDF
     # ----------------------------------------
     elif mode_pdf == "🔗 Gabungkan Banyak PDF":
         st.markdown("### 🔗 Penggabung PDF (Merge)")
-        st.info("💡 **Tips:** Klik 'Browse files' lalu tahan tombol **CTRL** (Windows) atau pilih banyak file sekaligus dari HP Anda.")
+        st.info("💡 **Tips:** Klik tombol Browse lalu pilih beberapa file sekaligus untuk digabungkan.")
         
         file_pdf_gabung = st.file_uploader("Unggah 2 atau lebih File PDF...", type=["pdf"], accept_multiple_files=True, key="pdf_merge")
         
@@ -838,7 +827,6 @@ with tab9:
             else:
                 st.success(f"Terdapat {len(file_pdf_gabung)} file siap digabungkan.")
                 
-                # Menampilkan daftar urutan file
                 with st.expander("Lihat Urutan File", expanded=True):
                     for i, file in enumerate(file_pdf_gabung):
                         st.markdown(f"**{i+1}.** `{file.name}`")
@@ -877,6 +865,7 @@ st.markdown(
     "</div>", 
     unsafe_allow_html=True
 )
+
 
 
 
