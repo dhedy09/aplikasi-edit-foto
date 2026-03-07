@@ -61,7 +61,7 @@ with st.sidebar:
 
 # --- NAVIGASI MODERN (TABS) ---
 st.title("✨ Studio Multatuli AI")
-tab1, tab2, tab3, tab4, tab5 = st.tabs(["✂️ Hapus Latar", "🗜️ Kompres", "🎨 Warna", "🔄 Format", "📍 Teks & Waktu"])
+tab1, tab2, tab3, tab4, tab5 = st.tabs(["✂️ Hapus Latar", "🗜️ Kompres", "🎨 Warna", "🔄 Format", "🪄 Filter"])
 
 # ==========================================
 # TAB 1: HAPUS LATAR (AI)
@@ -279,102 +279,56 @@ with tab4:
                 )
 
 # ==========================================
-# TAB 5: STEMPEL ESTETIK (TEKS, LOKASI, WAKTU & KOORDINAT)
+# TAB 5: FILTER ESTETIK ALA INSTAGRAM
 # ==========================================
 with tab5:
-    st.write("Tambahkan cap lokasi, momen, waktu, hingga GPS Koordinat ala profesional.")
+    st.write("Berikan sentuhan artistik pada foto Anda dengan satu klik!")
     
-    watermark_file = st.file_uploader("Unggah foto...", type=["jpg", "png", "jpeg"], key="upload_watermark")
+    filter_file = st.file_uploader("Unggah foto untuk diberi filter...", type=["jpg", "png", "jpeg"], key="upload_filter")
     
-    if watermark_file:
-        img_wm = Image.open(watermark_file).convert("RGBA")
+    if filter_file:
+        img_asli_filter = Image.open(filter_file)
         
-        # --- Pengaturan Pengguna ---
-        col_teks, col_pos = st.columns(2)
-        with col_teks:
-            teks_lokasi = st.text_input("📍 Ketik Lokasi (Cth: Monas, Jakarta):", "Bandar Lampung")
-            tambah_waktu = st.checkbox("🕰️ Tambahkan Waktu Saat Ini?", value=True)
-            tambah_koordinat = st.checkbox("🌍 Lacak & Tambahkan Koordinat GPS?", value=False)
-            
-        with col_pos:
-            posisi = st.selectbox("Letak Stempel:", ["Kanan Bawah", "Kiri Bawah", "Kiri Atas", "Kanan Atas"])
-            
-        if st.button("🪄 Pasang Stempel", type="primary", use_container_width=True):
-            with st.spinner("Meracik stempel & mencari lokasi..."):
-                
-                teks_akhir = teks_lokasi
-                
-                # 1. Logika Pencari Koordinat GPS
-                if tambah_koordinat and teks_lokasi:
-                    try:
-                        # Membuat agen pencari peta
-                        geolocator = Nominatim(user_agent="studio_foto_multatuli")
-                        lokasi_map = geolocator.geocode(teks_lokasi)
-                        
-                        if lokasi_map:
-                            koordinat_str = f"Lat: {lokasi_map.latitude:.4f} | Long: {lokasi_map.longitude:.4f}"
-                            teks_akhir += f"\n{koordinat_str}"
-                        else:
-                            st.warning(f"⚠️ Radar tidak menemukan koordinat untuk '{teks_lokasi}'.")
-                    except:
-                        st.warning("⚠️ Gagal mengambil koordinat (jaringan sibuk).")
-                
-                # 2. Logika Penambah Waktu
-                if tambah_waktu:
-                    waktu_sekarang = datetime.now().strftime("%d %b %Y - %H:%M")
-                    teks_akhir += f"\n{waktu_sekarang}" if teks_akhir else waktu_sekarang
-                
-                # 3. Proses Menggambar di Foto
-                txt_layer = Image.new("RGBA", img_wm.size, (255, 255, 255, 0))
-                draw = ImageDraw.Draw(txt_layer)
-                
-                ukuran_font = max(int(img_wm.width * 0.025), 15) # Ukuran sedikit dikecilkan agar muat
-                
-                try:
-                    font = ImageFont.truetype("Roboto-Regular.ttf", ukuran_font)
-                except IOError:
-                    font = ImageFont.load_default()
-                    
-                # Hitung ukuran kotak
-                bbox = draw.multiline_textbbox((0, 0), teks_akhir, font=font, spacing=5)
-                teks_lebar = bbox[2] - bbox[0]
-                teks_tinggi = bbox[3] - bbox[1]
-                
-                padding = 15
-                margin = 30
-                
-                # Penempatan
-                if posisi == "Kiri Atas":
-                    x, y = margin, margin
-                elif posisi == "Kanan Atas":
-                    x, y = img_wm.width - teks_lebar - margin - (padding*2), margin
-                elif posisi == "Kiri Bawah":
-                    x, y = margin, img_wm.height - teks_tinggi - margin - (padding*2)
-                else: 
-                    x, y = img_wm.width - teks_lebar - margin - (padding*2), img_wm.height - teks_tinggi - margin - (padding*2)
-                
-                # Gambar Kotak Hitam (Alpha 140)
-                kotak_bg = [x, y, x + teks_lebar + (padding*2), y + teks_tinggi + (padding*2)]
-                draw.rectangle(kotak_bg, fill=(0, 0, 0, 140))
-                
-                # Tulis Teks Putih
-                draw.multiline_text((x + padding, y + padding), teks_akhir, font=font, fill=(255, 255, 255, 255), spacing=5)
-                
-                # Gabungkan
-                hasil_akhir = Image.alpha_composite(img_wm, txt_layer).convert("RGB")
+        # Pilihan Filter menggunakan Dropdown
+        pilihan_filter = st.selectbox(
+            "Pilih Efek Visual:", 
+            ["Pilih Filter...", "⚫⚪ Hitam Putih (Grayscale)", "💧 Blur Halus", "✏️ Sketsa (Contour)", "🔍 Tajamkan Detail", "🌌 Tepi Menyala (Edge Enhance)"]
+        )
+        
+        if pilihan_filter != "Pilih Filter...":
+            with st.spinner(f"Menerapkan {pilihan_filter}..."):
+                # Proses penerapan filter
+                if pilihan_filter == "⚫⚪ Hitam Putih (Grayscale)":
+                    img_hasil = ImageOps.grayscale(img_asli_filter)
+                elif pilihan_filter == "💧 Blur Halus":
+                    img_hasil = img_asli_filter.filter(ImageFilter.GaussianBlur(radius=5))
+                elif pilihan_filter == "✏️ Sketsa (Contour)":
+                    img_hasil = img_asli_filter.filter(ImageFilter.CONTOUR)
+                elif pilihan_filter == "🔍 Tajamkan Detail":
+                    img_hasil = img_asli_filter.filter(ImageFilter.DETAIL)
+                elif pilihan_filter == "🌌 Tepi Menyala (Edge Enhance)":
+                    img_hasil = img_asli_filter.filter(ImageFilter.EDGE_ENHANCE_MORE)
                 
                 st.markdown("---")
-                st.image(hasil_akhir, caption="✨ Hasil Stempel Super Lengkap", use_container_width=True)
+                st.image(img_hasil, caption=f"✨ Hasil: {pilihan_filter}", use_container_width=True)
                 
-                buf_wm = io.BytesIO()
-                hasil_akhir.save(buf_wm, format="JPEG", quality=95)
+                # Menyiapkan file untuk didownload
+                buf_filter = io.BytesIO()
+                
+                # Konversi format jika filternya membuang warna (misal: grayscale)
+                if img_hasil.mode in ("L", "P", "RGBA"):
+                    img_hasil = img_hasil.convert("RGB")
+                    
+                img_hasil.save(buf_filter, format="JPEG", quality=95)
+                    
                 st.download_button(
-                    label="📥 Download Foto Stempel",
-                    data=buf_wm.getvalue(),
-                    file_name="foto_stempel_gps.jpg",
+                    label="📥 Download Foto Estetik",
+                    data=buf_filter.getvalue(),
+                    file_name="hasil_filter.jpg",
                     mime="image/jpeg",
                     type="primary",
                     use_container_width=True
                 )
+
 
 
