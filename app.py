@@ -1,6 +1,6 @@
 import streamlit as st
 import requests
-from PIL import Image, ImageOps
+from PIL import Image, ImageOps, ImageEnhance
 import io
 
 # --- KONFIGURASI HALAMAN ---
@@ -59,7 +59,7 @@ with st.sidebar:
 
 # --- NAVIGASI MODERN (TABS) ---
 st.title("✨ Studio Multatuli AI")
-tab1, tab2 = st.tabs(["✂️ Hapus Background", "🗜️Kompres Gambar"])
+tab1, tab2, tab3 = st.tabs(["✂️ AI Background Remover", "🗜️ Smart Image Compressor", "🎨 Editor Warna & Cahaya"])
 
 # ==========================================
 # TAB 1: HAPUS LATAR (AI)
@@ -179,4 +179,46 @@ with tab2:
             type="primary",
             use_container_width=True
         )
+
+# ==========================================
+# TAB 3: EDITOR WARNA & CAHAYA
+# ==========================================
+with tab3:
+    st.write("Sesuaikan kecerahan, kontras, dan saturasi foto Anda secara *real-time*!")
+
+    enhance_file = st.file_uploader("Unggah foto untuk diedit warnanya...", type=["jpg", "png", "jpeg"], key="upload_enhance")
+
+    if enhance_file:
+        img_asli = Image.open(enhance_file)
+
+        # Buat 3 kolom untuk slider agar rapi menyamping
+        col_b, col_c, col_s = st.columns(3)
+        with col_b:
+            kecerahan = st.slider("☀️ Kecerahan", min_value=0.5, max_value=2.0, value=1.0, step=0.1)
+        with col_c:
+            kontras = st.slider("🌗 Kontras", min_value=0.5, max_value=2.0, value=1.0, step=0.1)
+        with col_s:
+            saturasi = st.slider("🌈 Saturasi (Warna)", min_value=0.0, max_value=2.0, value=1.0, step=0.1)
+
+        # Proses Edit Instan
+        img_edit = ImageEnhance.Brightness(img_asli).enhance(kecerahan)
+        img_edit = ImageEnhance.Contrast(img_edit).enhance(kontras)
+        img_edit = ImageEnhance.Color(img_edit).enhance(saturasi)
+
+        st.markdown("---")
+        # Tampilkan Hasil Edit
+        st.image(img_edit, caption="✨ Hasil Editan Langsung", use_container_width=True)
+
+        # Tombol Download
+        buf_edit = io.BytesIO()
+        img_edit.save(buf_edit, format="PNG")
+        st.download_button(
+            label="📥 Download Hasil Edit",
+            data=buf_edit.getvalue(),
+            file_name="hasil_edit_warna.png",
+            mime="image/png",
+            type="primary",
+            use_container_width=True
+        )
+
 
