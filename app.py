@@ -736,60 +736,53 @@ with tab8:
             )
 
 # ==========================================
-# TAB 9: ALAT PDF POWERFUL (KOMPRES & GABUNG)
+# TAB 9: ALAT PDF POWERFUL (KOMPRES, GABUNG, PECAH)
 # ==========================================
 with tab9:
-    st.write("Alat super cepat dan AMAN untuk mengecilkan ukuran PDF serta menggabungkan dokumen.")
+    st.write("Alat super cepat dan AMAN untuk mengelola file PDF SPJ atau dokumen administrasi Anda.")
     
-    # Sub-menu
-    mode_pdf = st.radio("Pilih Mode Alat PDF:", ["🗜️ Kompres Ukuran PDF", "🔗 Gabungkan Banyak PDF"], horizontal=True)
+    # Sub-menu (Sekarang ada 3 pilihan)
+    mode_pdf = st.radio(
+        "Pilih Mode Alat PDF:", 
+        ["🗜️ Kompres Ukuran", "🔗 Gabungkan PDF", "✂️ Pecah PDF (Split)"], 
+        horizontal=True
+    )
     st.markdown("---")
     
     # ----------------------------------------
     # FITUR 1: KOMPRES PDF (SAFE MODE - LOSSLESS)
     # ----------------------------------------
-    if mode_pdf == "🗜️ Kompres Ukuran PDF":
+    if mode_pdf == "🗜️ Kompres Ukuran":
         st.markdown("### 🗜️ Kompresor PDF Pintar (Lossless)")
-        st.info("💡 **Cara Kerja:** Menghapus data sampah (metadata, font ganda, objek mati) di dalam file tanpa memburamkan teks/gambar sama sekali. Aman 100% untuk SPJ.")
+        st.info("💡 **Cara Kerja:** Menghapus data sampah di dalam file tanpa memburamkan teks/gambar sama sekali. Aman 100% untuk SPJ.")
         
         file_pdf_kompres = st.file_uploader("Unggah 1 File PDF...", type=["pdf"], key="pdf_compress")
         
         if file_pdf_kompres:
-            # Hitung ukuran asli
             bytes_asli = file_pdf_kompres.getvalue()
             ukuran_asli_mb = len(bytes_asli) / (1024 * 1024)
-            
             st.markdown(f"**📄 Nama File:** `{file_pdf_kompres.name}`")
             
             if st.button("🗜️ BERSIHKAN & KOMPRES PDF", type="primary", use_container_width=True):
                 with st.spinner("Menyapu metadata dan merapatkan struktur PDF..."):
                     try:
-                        # Buka PDF
                         doc = fitz.open(stream=bytes_asli, filetype="pdf")
-                        
-                        # KOMPRESI AMAN (Tanpa memburamkan gambar)
-                        # garbage=4 : Hapus objek duplikat
-                        # deflate=True : Kompres aliran teks/vektor
-                        # clean=True : Bersihkan sintaks PDF dari kode usang
                         hasil_bytes = doc.tobytes(garbage=4, deflate=True, clean=True)
                         
                         ukuran_baru_mb = len(hasil_bytes) / (1024 * 1024)
                         
-                        # Hitung persentase penghematan
                         if ukuran_asli_mb > 0:
                             penghematan = 100 - ((ukuran_baru_mb / ukuran_asli_mb) * 100)
                         else:
                             penghematan = 0
                             
-                        # Mencegah nilai minus jika file tidak bisa dikompres lagi
                         if penghematan < 0:
                             penghematan = 0
                             ukuran_baru_mb = ukuran_asli_mb
-                            hasil_bytes = bytes_asli # Kembalikan file asli agar tidak bengkak
+                            hasil_bytes = bytes_asli 
                             
                         st.success("✅ Proses Selesai! Tidak ada visual yang diburamkan.")
                         
-                        # Tampilkan Metrik
                         col_metrik1, col_metrik2, col_metrik3 = st.columns(3)
                         col_metrik1.metric(label="Ukuran Asli", value=f"{ukuran_asli_mb:.2f} MB")
                         col_metrik2.metric(label="Ukuran Baru", value=f"{ukuran_baru_mb:.2f} MB", delta=f"-{penghematan:.2f}%", delta_color="inverse")
@@ -797,7 +790,6 @@ with tab9:
                         if penghematan < 1.0:
                             st.warning("⚠️ Ukuran nyaris tidak berubah karena PDF Anda sudah sangat padat/terkompresi dari asalnya.")
                         
-                        # Tombol Download
                         from datetime import datetime
                         waktu = datetime.now().strftime("%H%M%S")
                         
@@ -815,7 +807,7 @@ with tab9:
     # ----------------------------------------
     # FITUR 2: GABUNG PDF
     # ----------------------------------------
-    elif mode_pdf == "🔗 Gabungkan Banyak PDF":
+    elif mode_pdf == "🔗 Gabungkan PDF":
         st.markdown("### 🔗 Penggabung PDF (Merge)")
         st.info("💡 **Tips:** Klik tombol Browse lalu pilih beberapa file sekaligus untuk digabungkan.")
         
@@ -855,6 +847,64 @@ with tab9:
                             )
                         except Exception as e:
                             st.error(f"Terjadi kesalahan: {e}")
+
+    # ----------------------------------------
+    # FITUR 3: PECAH PDF (SPLIT)
+    # ----------------------------------------
+    elif mode_pdf == "✂️ Pecah PDF (Split)":
+        st.markdown("### ✂️ Pemotong PDF (Split)")
+        st.info("💡 **Cara Kerja:** Ekstrak halaman tertentu dari dokumen PDF Anda (misal: ambil halaman 2 sampai 5 saja).")
+        
+        file_pdf_split = st.file_uploader("Unggah 1 File PDF yang ingin dipotong...", type=["pdf"], key="pdf_split")
+        
+        if file_pdf_split:
+            bytes_split = file_pdf_split.getvalue()
+            
+            try:
+                # Buka PDF untuk mendeteksi jumlah halaman
+                doc_split = fitz.open(stream=bytes_split, filetype="pdf")
+                total_halaman = len(doc_split)
+                
+                st.success(f"📄 File dimuat! Total dokumen ini memiliki: **{total_halaman} Halaman**.")
+                
+                # --- PENGATURAN RENTANG HALAMAN ---
+                st.markdown("**Pilih rentang halaman yang ingin diambil:**")
+                col_hal1, col_hal2 = st.columns(2)
+                
+                with col_hal1:
+                    hal_awal = st.number_input("Mulai dari Halaman", min_value=1, max_value=total_halaman, value=1)
+                with col_hal2:
+                    hal_akhir = st.number_input("Sampai Halaman", min_value=1, max_value=total_halaman, value=total_halaman)
+                
+                # Validasi agar halaman awal tidak lebih besar dari halaman akhir
+                if hal_awal > hal_akhir:
+                    st.error("⚠️ Halaman awal tidak boleh lebih besar dari halaman akhir!")
+                else:
+                    if st.button("✂️ POTONG & AMBIL HALAMAN", type="primary", use_container_width=True):
+                        with st.spinner(f"Mengekstrak halaman {hal_awal} sampai {hal_akhir}..."):
+                            # Buat file PDF kosong baru
+                            pdf_baru = fitz.open()
+                            
+                            # Masukkan halaman yang dipilih (Sistem PyMuPDF dimulai dari indeks 0, jadi kita kurangi 1)
+                            pdf_baru.insert_pdf(doc_split, from_page=hal_awal-1, to_page=hal_akhir-1)
+                            
+                            hasil_bytes_split = pdf_baru.tobytes()
+                            
+                            st.success(f"✅ Berhasil mengambil {hal_akhir - hal_awal + 1} halaman!")
+                            
+                            from datetime import datetime
+                            waktu = datetime.now().strftime("%H%M%S")
+                            
+                            st.download_button(
+                                label="📥 Download PDF Potongan",
+                                data=hasil_bytes_split,
+                                file_name=f"Potongan_Hal_{hal_awal}-{hal_akhir}_{file_pdf_split.name}",
+                                mime="application/pdf",
+                                type="primary",
+                                use_container_width=True
+                            )
+            except Exception as e:
+                st.error(f"Terjadi kesalahan saat membaca PDF: {e}")
         
 # --- FOOTER APLIKASI ---
 st.markdown("---")
@@ -865,6 +915,7 @@ st.markdown(
     "</div>", 
     unsafe_allow_html=True
 )
+
 
 
 
