@@ -5,16 +5,15 @@ import io
 
 # Konfigurasi Halaman Web
 st.set_page_config(page_title="Studio Foto AI Pro", layout="centered")
-st.title("✨ Studio Foto AI Pro (Stable)")
-st.write("Versi ringan dan stabil. Potongan tetap tajam!")
+st.title("✨ Studio Foto AI Pro (Stable & Clean)")
+st.write("Versi ringan, stabil, dan bebas error log!")
 
 # Fungsi pembantu untuk memproses gambar
 def process_remove_bg(image_input):
     img_byte = io.BytesIO()
     image_input.save(img_byte, format='PNG')
     
-    # Menggunakan model bawaan yang ramah memori server gratis
-    # Fitur matting DIMATIKAN agar tidak ada efek blur kemerahan pada tepi
+    # Mematikan alpha_matting agar tepi potongan tajam dan tidak menyerap warna latar
     res_bytes = remove(
         img_byte.getvalue(),
         alpha_matting=False 
@@ -33,7 +32,8 @@ with tab1:
     
     if file_tab1:
         img1 = Image.open(file_tab1).convert("RGBA")
-        st.image(img1, caption="Foto Asli", use_container_width=True)
+        # Menggunakan kode baru width="stretch" sesuai saran log Streamlit
+        st.image(img1, caption="Foto Asli", width="stretch")
         
         st.markdown("---")
         bg_type = st.radio("2. Pilih Tipe Latar Baru:", ["Transparan", "Warna Solid", "Gambar Pemandangan"], horizontal=True)
@@ -63,7 +63,8 @@ with tab1:
                     final_img1 = bg_img
                     
                 st.success("Selesai!")
-                st.image(final_img1, caption="Hasil Akhir", use_container_width=True)
+                # Menggunakan kode baru width="stretch"
+                st.image(final_img1, caption="Hasil Akhir", width="stretch")
                 
                 buf1 = io.BytesIO()
                 final_img1.save(buf1, format="PNG")
@@ -78,7 +79,8 @@ with tab2:
     
     if file_tab2:
         img2 = Image.open(file_tab2).convert("RGBA")
-        st.image(img2, caption="Foto Asli", use_container_width=True)
+        # Menggunakan kode baru width="stretch"
+        st.image(img2, caption="Foto Asli", width="stretch")
         
         blur_amount = st.slider("Tingkat Keburaman (Blur)", min_value=1, max_value=20, value=7)
         
@@ -89,7 +91,8 @@ with tab2:
                 bg_blurred.paste(fg2, (0, 0), fg2)
                 
                 st.success("Selesai!")
-                st.image(bg_blurred, caption="Hasil Blur", use_container_width=True)
+                # Menggunakan kode baru width="stretch"
+                st.image(bg_blurred, caption="Hasil Blur", width="stretch")
                 
                 buf2 = io.BytesIO()
                 bg_blurred.save(buf2, format="PNG")
