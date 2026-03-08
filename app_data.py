@@ -267,19 +267,37 @@ elif menu_pilihan == "Rekap SIPD":
         # Saring data khusus untuk tahun yang dipilih
         df_tahun = df[df['tahun'] == tahun_pilihan].copy()
 
-        # --- PENYATUAN SOTK KHUSUS 2026 (AGAR TIDAK DOUBLE) ---
-        if str(tahun_pilihan) == "2026":
-            # 1. Samakan Namanya (Pakai 'contains' agar kebal terhadap spasi siluman/typo di data asli)
-            df_tahun.loc[df_tahun['nama_skpd'].str.contains("Pendidikan dan Kebudayaan", case=False, na=False), 'nama_skpd'] = "Dinas Pendidikan"
-            
-            # 2. Samakan Kodenya (INI KUNCI AGAR TIDAK JADI 2 BARIS)
-            # Kita paksa semua baris yang bernama "Dinas Pendidikan" memakai SATU kode yang sama.
-            # GANTI teks "KODE_BARU_DISDIK" di bawah dengan angka kode SKPD Dinas Pendidikan di Tahapan Baru (Tahap 2)!
-            df_tahun.loc[df_tahun['nama_skpd'] == "Dinas Pendidikan", 'kode_skpd'] = "KODE_BARU_DISDIK"
+        # ==========================================================
+        # DAFTAR TRANSLASI SOTK (KODE LAMA -> KODE BARU)
+        # Meniru persis logika dari VBA Anda
+        # ==========================================================
+        kamus_map_skpd = {
+            "1.01.2.22.0.00.16.0000": "1.01.0.00.0.00.16.0000"
+            # Tambahkan kode lain di sini jika ada mutasi
+        }
+        
+        # Terapkan translasi kode SKPD ke seluruh data di tahun terpilih
+        df_tahun['kode_skpd'] = df_tahun['kode_skpd'].replace(kamus_map_skpd)
 
-
-        # 2. AMBIL DAFTAR TAHAPAN & SKPD (Sekarang sudah melebur jadi satu)
+        # ----------------------------------------------------------
+        # LOGIKA MENDAPATKAN NAMA SKPD DARI TAHAPAN TERAKHIR (Seperti VBA)
+        # ----------------------------------------------------------
         list_tahapan = df_tahun['tahapan'].unique().tolist()
+        
+        # Asumsikan tahapan terakhir ada di urutan belakang list (atau sesuaikan jika perlu di-sort)
+        tahap_akhir = list_tahapan[-1] if list_tahapan else ""
+        
+        # Buat kamus referensi Nama SKPD berdasarkan Kode SKPD di Tahap Akhir
+        df_tahap_akhir = df_tahun[df_tahun['tahapan'] == tahap_akhir]
+        dict_nama_skpd = dict(zip(df_tahap_akhir['kode_skpd'], df_tahap_akhir['nama_skpd']))
+        
+        # Update/Timpa semua nama_skpd di df_tahun agar seragam menggunakan nama dari Tahap Akhir
+        # Jika kodenya tidak ada di tahap akhir (dinas tutup total), biarkan pakai nama lamanya
+        df_tahun['nama_skpd'] = df_tahun['kode_skpd'].map(dict_nama_skpd).fillna(df_tahun['nama_skpd'])
+
+        # ==========================================================
+
+        # 2. AMBIL DAFTAR SKPD UNTUK DROPDOWN
         list_skpd = ["SEMUA SKPD"] + sorted([str(x) for x in df_tahun['nama_skpd'].dropna().unique().tolist()])
         
         # 3. KOLOM FILTER SKPD & TAHAPAN
@@ -288,12 +306,12 @@ elif menu_pilihan == "Rekap SIPD":
             skpd_pilihan = st.selectbox("🏢 Filter SKPD:", options=list_skpd)
         with col_tahapan:
             tahapan_acuan = st.selectbox("📍 Acuan Sumber Dana:", options=list_tahapan)
-        
+            
         if st.button("🚀 PROSES & BUAT REKAP", type="primary", use_container_width=True):
-            with st.spinner("🧠 Sedang meracik Pivot berjenjang... (Memakan waktu beberapa detik)"):
+            with st.spinner("🧠 Sedang meracik Pivot berjenjang..."):
                 
-                # --- FILTER DATA BERDASARKAN SKPD PILIHAN (Gunakan df_tahun) ---
-                df_proses = df_tahun.copy() # <-- KUNCI: Kita memproses data yang sudah disaring tahunnya
+                # --- FILTER DATA BERDASARKAN SKPD PILIHAN ---
+                df_proses = df_tahun.copy()
                 if skpd_pilihan != "SEMUA SKPD":
                     df_proses = df_proses[df_proses['nama_skpd'] == skpd_pilihan]
                     
@@ -427,6 +445,7 @@ elif menu_pilihan == "Rekap SIPD":
                     mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                     type="primary"
                 )
+
 
 
 
