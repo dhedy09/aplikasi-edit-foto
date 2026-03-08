@@ -8,3 +8,4 @@ streamlit-cropper
 PyMuPDF
 openpyxl
 streamlit-option-menu
+supabase
