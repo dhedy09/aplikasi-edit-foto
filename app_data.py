@@ -261,40 +261,40 @@ elif menu_pilihan == "Rekap SIPD":
         st.markdown("### ⚙️ Pengaturan Filter & Rekap")
         
         # 1. FILTER TAHUN (Sebagai Induk Filter)
-        list_tahun = sorted(df['tahun'].dropna().unique().tolist(), reverse=True) # Urutkan tahun dari terbaru
+        list_tahun = sorted(df['tahun'].dropna().unique().tolist(), reverse=True)
         tahun_pilihan = st.selectbox("📅 Pilih Tahun Anggaran:", options=list_tahun)
         
         # Saring data khusus untuk tahun yang dipilih
         df_tahun = df[df['tahun'] == tahun_pilihan].copy()
 
-        # --- KAMUS TRANSLASI OPD (HANYA DI MEMORI, DATABASE AMAN) ---
-        # Formatnya: {"Nama OPD Lama di Tahap Awal" : "Nama OPD Baru di Tahap Akhir"}
-        kamus_opd = {
-            "Dinas Pendidikan dan Kebudayaan": "Dinas Pendidikan",
-            # "Dinas Lama Lainnya": "Dinas Baru Lainnya" <-- Tambahkan di sini jika ada lagi nanti
-        }
-        
-        # Eksekusi penggantian nama (Hanya untuk keperluan rekap ini)
-        df_tahun['nama_skpd'] = df_tahun['nama_skpd'].replace(kamus_opd)
+        # --- KAMUS TRANSISI SOTK (KHUSUS AKTIF DI TAHUN 2026) ---
+        # Pastikan tahun_pilihan disesuaikan dengan tipe datanya (bisa angka atau teks)
+        if str(tahun_pilihan) == "2026":
+            # 1. Kamus Nama OPD (Ganti nama lama ke nama baru)
+            kamus_nama = {
+                "Dinas Pendidikan dan Kebudayaan": "Dinas Pendidikan"
+                # Jika ada dinas lain yang ganti nama di 2026, tambahkan di sini
+            }
+            # 2. Kamus Kode OPD (GANTI "KODE_LAMA" DAN "KODE_BARU" DENGAN ANGKA ASLINYA!)
+            kamus_kode = {
+                "KODE_LAMA_DISDIKBUD_DI_TAHAP_1": "KODE_BARU_DISDIK_DI_TAHAP_2"
+            }
+            
+            # Terapkan perubahan hanya untuk tahun 2026
+            df_tahun['nama_skpd'] = df_tahun['nama_skpd'].replace(kamus_nama)
+            df_tahun['kode_skpd'] = df_tahun['kode_skpd'].replace(kamus_kode)
 
-        # 2. AMBIL DAFTAR TAHAPAN & SKPD (Sekarang nama lamanya sudah otomatis hilang dan melebur)
+
+        # 2. AMBIL DAFTAR TAHAPAN & SKPD 
         list_tahapan = df_tahun['tahapan'].unique().tolist()
         list_skpd = ["SEMUA SKPD"] + sorted([str(x) for x in df_tahun['nama_skpd'].dropna().unique().tolist()])
         
         # 3. KOLOM FILTER SKPD & TAHAPAN
         col_skpd, col_tahapan = st.columns(2)
         with col_skpd:
-            skpd_pilihan = st.selectbox(
-                "🏢 Filter SKPD:", 
-                options=list_skpd,
-                help="Pilih 'SEMUA SKPD' untuk laporan utuh, atau pilih satu dinas untuk melihat rincian spesifik."
-            )
+            skpd_pilihan = st.selectbox("🏢 Filter SKPD:", options=list_skpd)
         with col_tahapan:
-            tahapan_acuan = st.selectbox(
-                "📍 Acuan Sumber Dana:", 
-                options=list_tahapan,
-                help="Sumber dana akan diintip dan digabungkan berdasarkan tahapan yang dipilih."
-            )
+            tahapan_acuan = st.selectbox("📍 Acuan Sumber Dana:", options=list_tahapan)
         
         if st.button("🚀 PROSES & BUAT REKAP", type="primary", use_container_width=True):
             with st.spinner("🧠 Sedang meracik Pivot berjenjang... (Memakan waktu beberapa detik)"):
@@ -434,6 +434,7 @@ elif menu_pilihan == "Rekap SIPD":
                     mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                     type="primary"
                 )
+
 
 
 
