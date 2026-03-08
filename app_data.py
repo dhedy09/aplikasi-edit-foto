@@ -4,10 +4,23 @@ import io
 import re
 from datetime import datetime
 import pandas as pd
-from streamlit_option_menu import option_menu # <--- Library Menu Modern
+from streamlit_option_menu import option_menu
+from supabase import create_client, Client # <--- Library Supabase
 
 # 1. Judul Halaman
 st.set_page_config(page_title="Olah Data & SIPD", layout="wide", page_icon="📊")
+
+# ==========================================
+# KONEKSI KE DATABASE SUPABASE
+# ==========================================
+# Mengambil kunci dari brankas Rahasia Streamlit
+try:
+    url: str = st.secrets["SUPABASE_URL"]
+    key: str = st.secrets["SUPABASE_KEY"]
+    supabase: Client = create_client(url, key)
+except Exception as e:
+    st.error("⚠️ Gagal terhubung ke Database. Pastikan SUPABASE_URL dan SUPABASE_KEY sudah ada di Streamlit Secrets!")
+    st.stop()
 
 # 2. Sistem Login
 if "authenticated" not in st.session_state:
@@ -36,11 +49,10 @@ with st.sidebar:
     st.markdown("<h2 style='text-align: center;'>📊 Mamayo Data</h2>", unsafe_allow_html=True)
     st.markdown("---")
     
-    # Menu Navigasi ala Web Profesional
     menu_pilihan = option_menu(
-        menu_title=None,  # Tidak perlu judul karena sudah ada di atas
+        menu_title=None,
         options=["Alat Excel", "Import SIPD", "Rekap SIPD"],
-        icons=["wrench-adjustable", "cloud-arrow-up-fill", "bar-chart-steps"], # Ikon dari Bootstrap
+        icons=["wrench-adjustable", "cloud-arrow-up-fill", "bar-chart-steps"], 
         default_index=0,
         styles={
             "container": {"padding": "0!important", "background-color": "transparent"},
@@ -62,24 +74,14 @@ if menu_pilihan == "Alat Excel":
     st.title("🛠️ Manipulasi Petik & Pembersih Karakter")
     st.write("Gunakan alat ini untuk merapikan data Dapodik/SIPD dalam satu kali jalan.")
     
-    with st.expander("📖 Buka Panduan Penggunaan", expanded=False):
-        st.markdown("""
-        **Cara Menggunakan Alat Ini:**
-        Pisahkan huruf kolom dengan koma (Contoh: `C, D, F`).
-        * **Skenario 1:** Hanya Petik -> Isi kotak Petik, kosongkan kotak Pembersih.
-        * **Skenario 2:** Hanya Ekstrak Angka -> Isi kotak Pembersih, kosongkan kotak Petik.
-        * **Skenario 3:** Kombinasi -> Isi huruf kolom yang sama di kedua kotak.
-        """)
-    
+    # ... (KODE ALAT EXCEL TETAP SAMA SEPERTI SEBELUMNYA) ...
     file_excel = st.file_uploader("📥 Unggah File Excel (.xlsx)", type=["xlsx"], key="excel_upload")
-    
     if file_excel:
         col1, col2 = st.columns(2)
         with col1:
             st.markdown("#### 1️⃣ Pengaturan Tanda Petik")
             kolom_petik = st.text_input("🔠 Kolom Petik (Cth: C, D):").upper()
             mode_excel = st.radio("⚙️ Aksi:", ["+ Tambah Petik Tersembunyi", "- Hapus Semua Petik"], horizontal=True)
-            
         with col2:
             st.markdown("#### 2️⃣ Pengaturan Pembersih Karakter")
             kolom_bersih = st.text_input("🧹 Kolom Ekstrak Angka (Cth: F, G):").upper()
@@ -92,7 +94,6 @@ if menu_pilihan == "Alat Excel":
                     try:
                         list_petik = [k.strip() for k in kolom_petik.split(",") if k.strip()]
                         list_bersih = [k.strip() for k in kolom_bersih.split(",") if k.strip()]
-                        
                         wb = openpyxl.load_workbook(file_excel)
                         ws = wb.active
                         
@@ -103,7 +104,6 @@ if menu_pilihan == "Alat Excel":
                                     if cell.value is not None:
                                         val_str = re.sub(r'\D', '', str(cell.value).strip())
                                         cell.value = val_str
-                                        
                         if list_petik:
                             for col in list_petik:
                                 for row in range(2, ws.max_row + 1):
@@ -123,7 +123,6 @@ if menu_pilihan == "Alat Excel":
                         wb.save(output_excel)
                         output_excel.seek(0)
                         st.success("✅ File berhasil diproses!")
-                        
                         st.download_button(
                             label="📥 Download Hasil Excel",
                             data=output_excel,
@@ -134,10 +133,10 @@ if menu_pilihan == "Alat Excel":
                     except Exception as e:
                         st.error(f"❌ Terjadi kesalahan: {e}")
 
-# --- MODUL 2: IMPORT SIPD ---
+# --- MODUL 2: IMPORT SIPD KE DATABASE ---
 elif menu_pilihan == "Import SIPD":
-    st.title("📥 Import & Pelabelan Data SIPD")
-    st.write("Unggah data mentah tarikan SIPD Anda di sini untuk diseragamkan dan diberi label Tahapan sebelum masuk ke sistem rekap.")
+    st.title("☁️ Upload SIPD ke Database Cloud")
+    st.write("Data Excel tarikan SIPD akan otomatis diformat dan disimpan ke server Supabase Anda secara permanen.")
     
     col_upload, col_tahapan = st.columns([2, 1])
     
@@ -145,38 +144,73 @@ elif menu_pilihan == "Import SIPD":
         file_sipd = st.file_uploader("Unggah Excel Tarikan SIPD (.xlsx / .xls)", type=["xlsx", "xls"])
         
     with col_tahapan:
-        nama_tahapan = st.text_input("🏷️ Nama Tahapan", placeholder="Cth: APBD Pokok 2026", help="Ketik nama tahapan anggaran ini.")
+        nama_tahapan = st.text_input("🏷️ Nama Tahapan", placeholder="Cth: APBD Pokok 2026")
         
     if file_sipd and nama_tahapan:
-        if st.button("⚡ PROSES & LABELI DATA", type="primary", use_container_width=True):
-            with st.spinner("Membaca dan menyuntikkan label tahapan..."):
+        if st.button("⚡ UPLOAD KE DATABASE SUPABASE", type="primary", use_container_width=True):
+            with st.spinner("🚀 Sedang menyedot dan mengirim data ke cloud... (Mohon tunggu, bisa memakan waktu beberapa detik untuk data besar)"):
                 try:
+                    # 1. Baca Excel
                     df_sipd = pd.read_excel(file_sipd)
+                    
+                    # 2. Tambahkan kolom TAHAPAN
                     df_sipd['TAHAPAN'] = nama_tahapan
                     
-                    st.success(f"✅ Berhasil memproses {len(df_sipd)} baris data dan menambahkan label '{nama_tahapan}'.")
+                    # 3. MENGGANTI NAMA KOLOM EXCEL AGAR COCOK DENGAN SQL (Database)
+                    # Di SQL kita buat huruf kecil dan pakai garis bawah (_), jadi kita harus samakan!
+                    pemetaan_kolom = {
+                        "NO": "no_urut",
+                        "TAHUN": "tahun",
+                        "KODE URUSAN": "kode_urusan",
+                        "NAMA URUSAN": "nama_urusan",
+                        "KODE SKPD": "kode_skpd",
+                        "NAMA SKPD": "nama_skpd",
+                        "KODE SUB UNIT": "kode_sub_unit",
+                        "NAMA SUB UNIT": "nama_sub_unit",
+                        "KODE BIDANG URUSAN": "kode_bidang_urusan",
+                        "NAMA BIDANG URUSAN": "nama_bidang_urusan",
+                        "KODE PROGRAM": "kode_program",
+                        "NAMA PROGRAM": "nama_program",
+                        "KODE KEGIATAN": "kode_kegiatan",
+                        "NAMA KEGIATAN": "nama_kegiatan",
+                        "KODE SUB KEGIATAN": "kode_sub_kegiatan",
+                        "NAMA SUB KEGIATAN": "nama_sub_kegiatan",
+                        "KODE SUMBER DANA": "kode_sumber_dana",
+                        "NAMA SUMBER DANA": "nama_sumber_dana",
+                        "KODE REKENING": "kode_rekening",
+                        "NAMA REKENING": "nama_rekening",
+                        "PAKET/KELOMPOK": "paket_kelompok",
+                        "NAMA PAKET/KELOMPOK": "nama_paket_kelompok",
+                        "PAGU": "pagu",
+                        "TAHAPAN": "tahapan"
+                    }
+                    # Terapkan pergantian nama kolom
+                    df_sipd.rename(columns=pemetaan_kolom, inplace=True)
                     
-                    st.write("👀 **Preview Data:**")
-                    st.dataframe(df_sipd.head(10), use_container_width=True)
+                    # 4. Ubah nilai kosong (NaN) di Excel menjadi None agar Database tidak error
+                    df_sipd = df_sipd.where(pd.notnull(df_sipd), None)
                     
-                    output_sipd = io.BytesIO()
-                    df_sipd.to_excel(output_sipd, index=False, engine='openpyxl')
-                    output_sipd.seek(0)
+                    # 5. Ubah data menjadi format Kamus (Dictionary) siap kirim
+                    data_siap_kirim = df_sipd.to_dict(orient='records')
                     
-                    st.download_button(
-                        label="📥 Download Data Siap Rekap",
-                        data=output_sipd,
-                        file_name=f"Master_{nama_tahapan.replace(' ', '_')}.xlsx",
-                        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                        type="primary"
-                    )
+                    # 6. KIRIM KE SUPABASE SECARA DICICIL (1000 Baris Sekali Kirim)
+                    # Ini mencegah server down / timeout jika barisnya puluhan ribu
+                    jumlah_data = len(data_siap_kirim)
+                    ukuran_cicilan = 1000
+                    
+                    for i in range(0, jumlah_data, ukuran_cicilan):
+                        potongan_data = data_siap_kirim[i : i + ukuran_cicilan]
+                        supabase.table("rekap_sipd").insert(potongan_data).execute()
+                    
+                    st.success(f"✅ LUAR BIASA! {jumlah_data} baris data '{nama_tahapan}' berhasil mendarat dengan selamat di Database Supabase!")
+                    
                 except Exception as e:
-                    st.error(f"❌ Gagal memproses file SIPD: {e}")
+                    st.error(f"❌ Gagal mengirim ke database: {e}")
                     
     elif file_sipd and not nama_tahapan:
-        st.warning("⚠️ Silakan isi kotak **Nama Tahapan** terlebih dahulu untuk memunculkan tombol proses.")
+        st.warning("⚠️ Silakan isi kotak **Nama Tahapan** terlebih dahulu untuk memunculkan tombol upload.")
 
 # --- MODUL 3: REKAP SIPD ---
 elif menu_pilihan == "Rekap SIPD":
     st.title("📊 Sistem Rekapitulasi SIPD")
-    st.info("🚧 Modul ini sedang dalam tahap pengembangan. Nantinya di sini kita bisa menarik data, membuat pivot, dan membandingkan pagu antar tahapan.")
+    st.info("🚧 Database sudah aktif! Menu rekap sedang dibangun...")
