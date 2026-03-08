@@ -347,10 +347,16 @@ elif menu_pilihan == "Rekap SIPD":
                 df_rekap = pd.concat(kumpulan_level, ignore_index=True)
                 df_rekap = df_rekap.sort_values('Sort_Key').reset_index(drop=True)
                 
+                # --- PERBAIKAN LOGIKA SUMBER DANA ---
+                # 1. Jika baris adalah Level 5 (Sub Kegiatan) DAN Sumber Dananya kosong, isi teks peringatan
+                df_rekap.loc[(df_rekap['Level'] == 5) & (df_rekap['Sumber Dana'].isna()), 'Sumber Dana'] = "Sumber Dana Tidak Ditemukan"
+                
+                # 2. Sisanya (Level 1-4 / SKPD s.d Kegiatan), pastikan tampil bersih/kosong
+                df_rekap['Sumber Dana'] = df_rekap['Sumber Dana'].fillna("")
+                
                 # Susun ulang kolom hasil akhir
                 kolom_final = ['Kode', 'Uraian', 'Sumber Dana'] + list_tahapan
                 df_tampil = df_rekap[kolom_final].copy()
-                df_tampil['Sumber Dana'] = df_tampil['Sumber Dana'].fillna("")
                 
                 # LANGKAH E: PROSES WARNA (BARIS & HEADER)
                 def beri_warna_dan_bold(df_t):
@@ -371,8 +377,8 @@ elif menu_pilihan == "Rekap SIPD":
                 gaya_header = [{
                     'selector': 'th',
                     'props': [
-                        ('background-color', '#1E3A8A'), # Warna Biru Tua Elegan
-                        ('color', 'white'),              # Teks Putih
+                        ('background-color', 'black'), # <-- Diubah ke Hitam pekat
+                        ('color', 'white'),            # Teks Putih
                         ('font-weight', 'bold'),
                         ('text-align', 'center'),
                         ('font-size', '15px')
@@ -402,6 +408,7 @@ elif menu_pilihan == "Rekap SIPD":
                     mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                     type="primary"
                 )
+
 
 
 
