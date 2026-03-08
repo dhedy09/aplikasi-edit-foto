@@ -135,7 +135,7 @@ if menu_pilihan == "Alat Excel":
                         st.error(f"❌ Terjadi kesalahan: {e}")
 
 # --- MODUL 2: IMPORT SIPD KE DATABASE ---
-    elif menu_pilihan == "Import SIPD":
+elif menu_pilihan == "Import SIPD":
     st.title("☁️ Upload SIPD ke Database Cloud")
     st.write("Data Excel tarikan SIPD akan otomatis diformat dan disimpan ke server Supabase Anda secara permanen.")
     
@@ -433,6 +433,7 @@ elif menu_pilihan == "Rekap SIPD":
                     mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                     type="primary"
                 )
+
 
 
 
