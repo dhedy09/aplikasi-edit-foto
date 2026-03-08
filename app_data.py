@@ -527,9 +527,13 @@ elif menu_pilihan == "Rekap SIPD":
 
                             df_rekap_dpa = pd.concat(kumpulan_dpa, ignore_index=True)
                             
-                            # Mengganti nama kolom sesuai kaidah UI
-                            df_rekap_dpa.rename(columns={tahap_awal: 'Anggaran Sebelum', tahap_akhir: 'Anggaran Sesudah'}, inplace=True)
+                            # --- PERBAIKAN BUG KEYERROR ---
+                            # Kita salin angkanya secara eksplisit, bukan di-rename. 
+                            # Ini aman meskipun tahap_awal dan tahap_akhir adalah tahapan yang sama.
+                            df_rekap_dpa['Anggaran Sebelum'] = df_rekap_dpa[tahap_awal] if tahap_awal in df_rekap_dpa.columns else 0
+                            df_rekap_dpa['Anggaran Sesudah'] = df_rekap_dpa[tahap_akhir] if tahap_akhir in df_rekap_dpa.columns else 0
                             df_rekap_dpa['Selisih'] = df_rekap_dpa['Anggaran Sesudah'] - df_rekap_dpa['Anggaran Sebelum']
+                            # ------------------------------
                             
                             # Isi kolom kosong dengan string kosong agar rapi
                             for col in ['Rincian Sumber Dana', 'Link DPA']:
@@ -539,13 +543,12 @@ elif menu_pilihan == "Rekap SIPD":
 
                             df_rekap_dpa = df_rekap_dpa.sort_values('Sort_Key').reset_index(drop=True)
 
-                            # --- SUSUNAN KOLOM SESUAI PERMINTAAN BARU ---
+                            # --- SUSUNAN KOLOM SESUAI PERMINTAAN ---
                             kolom_final_dpa = ['Link DPA', 'Kode', 'Uraian', 'Rincian Sumber Dana', 'Anggaran Sebelum', 'Anggaran Sesudah', 'Selisih', 'Level']
                             df_hasil_dpa = df_rekap_dpa[kolom_final_dpa].copy()
 
                             # 3. TAMPILAN WEB (STREAMLIT)
                             df_tampil_dpa = df_hasil_dpa.drop(columns=['Level'])
-                            kolom_angka_dpa = ['Anggaran Sebelum', 'Anggaran Sesudah', 'Selisih']
                             
                             st.success(f"✅ Integrasi Link DPA Berhasil!")
                             st.dataframe(
@@ -596,6 +599,7 @@ elif menu_pilihan == "Rekap SIPD":
                                 type="primary",
                                 key="dl_t3"
                             )
+
 
 
 
