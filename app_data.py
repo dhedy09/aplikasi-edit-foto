@@ -267,37 +267,18 @@ elif menu_pilihan == "Rekap SIPD":
         # Saring data khusus untuk tahun yang dipilih
         df_tahun = df[df['tahun'] == tahun_pilihan].copy()
 
-        # ==========================================================
-        # DAFTAR TRANSLASI SOTK (KODE LAMA -> KODE BARU)
-        # Meniru persis logika dari VBA Anda
-        # ==========================================================
-        kamus_map_skpd = {
-            "1.01.2.22.0.00.16.0000": "1.01.0.00.0.00.16.0000"
-            # Tambahkan kode lain di sini jika ada mutasi
-        }
+        # =====================================================================
+        # EKSEKUSI IDE ANDA: CEGAT & UBAH PAKSA DATA TAHAPAN AWAL SEJAK DINI
+        # =====================================================================
+        # 1. Ubah paksa kode SKPD lama menjadi kode SKPD baru (Persis seperti VBA Anda)
+        df_tahun['kode_skpd'] = df_tahun['kode_skpd'].replace({"1.01.2.22.0.00.16.0000": "1.01.0.00.0.00.16.0000"})
         
-        # Terapkan translasi kode SKPD ke seluruh data di tahun terpilih
-        df_tahun['kode_skpd'] = df_tahun['kode_skpd'].replace(kamus_map_skpd)
+        # 2. Ubah paksa SEMUA nama SKPD yang kodenya sudah baru tersebut menjadi "Dinas Pendidikan"
+        df_tahun.loc[df_tahun['kode_skpd'] == "1.01.0.00.0.00.16.0000", 'nama_skpd'] = "Dinas Pendidikan"
+        # =====================================================================
 
-        # ----------------------------------------------------------
-        # LOGIKA MENDAPATKAN NAMA SKPD DARI TAHAPAN TERAKHIR (Seperti VBA)
-        # ----------------------------------------------------------
+        # 2. AMBIL DAFTAR TAHAPAN & SKPD
         list_tahapan = df_tahun['tahapan'].unique().tolist()
-        
-        # Asumsikan tahapan terakhir ada di urutan belakang list (atau sesuaikan jika perlu di-sort)
-        tahap_akhir = list_tahapan[-1] if list_tahapan else ""
-        
-        # Buat kamus referensi Nama SKPD berdasarkan Kode SKPD di Tahap Akhir
-        df_tahap_akhir = df_tahun[df_tahun['tahapan'] == tahap_akhir]
-        dict_nama_skpd = dict(zip(df_tahap_akhir['kode_skpd'], df_tahap_akhir['nama_skpd']))
-        
-        # Update/Timpa semua nama_skpd di df_tahun agar seragam menggunakan nama dari Tahap Akhir
-        # Jika kodenya tidak ada di tahap akhir (dinas tutup total), biarkan pakai nama lamanya
-        df_tahun['nama_skpd'] = df_tahun['kode_skpd'].map(dict_nama_skpd).fillna(df_tahun['nama_skpd'])
-
-        # ==========================================================
-
-        # 2. AMBIL DAFTAR SKPD UNTUK DROPDOWN
         list_skpd = ["SEMUA SKPD"] + sorted([str(x) for x in df_tahun['nama_skpd'].dropna().unique().tolist()])
         
         # 3. KOLOM FILTER SKPD & TAHAPAN
@@ -445,6 +426,7 @@ elif menu_pilihan == "Rekap SIPD":
                     mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                     type="primary"
                 )
+
 
 
 
