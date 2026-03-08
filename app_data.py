@@ -215,7 +215,7 @@ elif menu_pilihan == "Rekap SIPD":
     st.title("📊 Sistem Rekapitulasi SIPD Terpadu")
     st.write("Buat laporan perbandingan Pagu antar tahapan dengan format berjenjang (SKPD hingga Sub Kegiatan).")
     
-    # 1. AMBIL SELURUH DATA DARI DATABASE (Dengan teknik Pagination/Cicil agar aman)
+    # 1. AMBIL SELURUH DATA DARI DATABASE
     with st.spinner("⏳ Menghubungkan ke server dan mengunduh seluruh data..."):
         try:
             semua_data = []
@@ -234,7 +234,7 @@ elif menu_pilihan == "Rekap SIPD":
             df = pd.DataFrame(semua_data)
         except Exception as e:
             st.error(f"❌ Gagal menarik data dari database: {e}")
-            df = pd.DataFrame() # DataFrame kosong jika gagal
+            df = pd.DataFrame() 
 
     if df.empty:
         st.info("💡 Database masih kosong atau tidak ada data. Silakan Import SIPD terlebih dahulu.")
@@ -244,27 +244,50 @@ elif menu_pilihan == "Rekap SIPD":
         # Rapikan data Pagu agar pasti menjadi angka
         df['pagu'] = pd.to_numeric(df['pagu'], errors='coerce').fillna(0)
         
-        # Ambil daftar tahapan yang tersedia di database
+        # Ambil daftar tahapan & SKPD dari database
         list_tahapan = df['tahapan'].unique().tolist()
+        # Mengambil nama SKPD unik, mengurutkannya sesuai abjad, dan menambah opsi "SEMUA SKPD" di atasnya
+        list_skpd = ["SEMUA SKPD"] + sorted([str(x) for x in df['nama_skpd'].dropna().unique().tolist()])
         
-        # 2. PENGATURAN REKAP DI LAYAR
-        st.markdown("### ⚙️ Pengaturan Rekap")
-        tahapan_acuan = st.selectbox(
-            "📍 Pilih Tahapan sebagai Acuan Sumber Dana:", 
-            options=list_tahapan,
-            help="Sumber dana akan diintip dan digabungkan berdasarkan tahapan yang Anda pilih di sini."
-        )
+        # 2. PENGATURAN REKAP & FILTER DI LAYAR
+        st.markdown("### ⚙️ Pengaturan Filter & Rekap")
+        
+        # Membagi layar jadi 2 kolom agar rapi
+        col_skpd, col_tahapan = st.columns(2)
+        with col_skpd:
+            skpd_pilihan = st.selectbox(
+                "🏢 Filter SKPD:", 
+                options=list_skpd,
+                help="Pilih 'SEMUA SKPD' untuk laporan utuh, atau pilih satu dinas untuk melihat rincian spesifik."
+            )
+        with col_tahapan:
+            tahapan_acuan = st.selectbox(
+                "📍 Acuan Sumber Dana:", 
+                options=list_tahapan,
+                help="Sumber dana akan diintip dan digabungkan berdasarkan tahapan yang dipilih."
+            )
         
         if st.button("🚀 PROSES & BUAT REKAP", type="primary", use_container_width=True):
             with st.spinner("🧠 Sedang meracik Pivot berjenjang... (Memakan waktu beberapa detik)"):
+                
+                # --- FILTER DATA BERDASARKAN SKPD PILIHAN ---
+                df_proses = df.copy()
+                if skpd_pilihan != "SEMUA SKPD":
+                    df_proses = df_proses[df_proses['nama_skpd'] == skpd_pilihan]
+                    
+                # Jika kebetulan SKPD yang dipilih tidak punya data
+                if df_proses.empty:
+                    st.warning(f"⚠️ Tidak ada data untuk {skpd_pilihan} di database.")
+                    st.stop()
+
                 # Isi nilai kosong pada kode agar tidak error saat diurutkan
                 kolom_teks = ['kode_skpd', 'nama_skpd', 'kode_urusan', 'nama_urusan', 'kode_program', 'nama_program', 
                               'kode_kegiatan', 'nama_kegiatan', 'kode_sub_kegiatan', 'nama_sub_kegiatan', 'nama_sumber_dana']
                 for col in kolom_teks:
-                    df[col] = df[col].fillna("")
+                    df_proses[col] = df_proses[col].fillna("")
 
-                # LANGKAH A: PIVOT PAGU PER TAHAPAN (Dasar Data)
-                df_pivot = df.pivot_table(
+                # LANGKAH A: PIVOT PAGU PER TAHAPAN (Gunakan data yang sudah difilter: df_proses)
+                df_pivot = df_proses.pivot_table(
                     index=['kode_skpd', 'nama_skpd', 'kode_urusan', 'nama_urusan', 'kode_program', 'nama_program', 
                            'kode_kegiatan', 'nama_kegiatan', 'kode_sub_kegiatan', 'nama_sub_kegiatan'],
                     columns='tahapan',
@@ -272,13 +295,10 @@ elif menu_pilihan == "Rekap SIPD":
                     aggfunc='sum'
                 ).reset_index().fillna(0)
                 
-                # LANGKAH B: MERACIK TEKS SUMBER DANA KHUSUS TAHAPAN ACUAN
-                df_sd = df[df['tahapan'] == tahapan_acuan].copy()
-                # Kelompokkan sumber dana yang sama di 1 sub kegiatan, jumlahkan pagunya
+                # LANGKAH B: MERACIK TEKS SUMBER DANA
+                df_sd = df_proses[df_proses['tahapan'] == tahapan_acuan].copy()
                 sd_grouped = df_sd.groupby(['kode_skpd', 'kode_urusan', 'kode_program', 'kode_kegiatan', 'kode_sub_kegiatan', 'nama_sumber_dana'])['pagu'].sum().reset_index()
-                # Format angkanya jadi Rupiah agar enak dibaca di teks
                 sd_grouped['teks_sd'] = sd_grouped.apply(lambda row: f"{row['nama_sumber_dana']} = {row['pagu']:,.0f}", axis=1)
-                # Gabungkan dengan Enter (\n) jika ada lebih dari 1 sumber dana
                 sd_final = sd_grouped.groupby(['kode_skpd', 'kode_urusan', 'kode_program', 'kode_kegiatan', 'kode_sub_kegiatan'])['teks_sd'].apply(lambda x: ' \n '.join(x)).reset_index()
                 sd_final.rename(columns={'teks_sd': 'Sumber Dana'}, inplace=True)
 
@@ -289,37 +309,37 @@ elif menu_pilihan == "Rekap SIPD":
                 l1 = df_pivot.groupby(['kode_skpd', 'nama_skpd'])[list_tahapan].sum().reset_index()
                 l1['Kode'], l1['Uraian'] = l1['kode_skpd'], l1['nama_skpd']
                 l1['Sort_Key'] = l1['kode_skpd']
-                l1['Level'] = 1 # <-- Penanda Level
+                l1['Level'] = 1
                 kumpulan_level.append(l1)
                 
                 # 2. Level Urusan
                 l2 = df_pivot.groupby(['kode_skpd', 'kode_urusan', 'nama_urusan'])[list_tahapan].sum().reset_index()
                 l2['Kode'], l2['Uraian'] = l2['kode_urusan'], l2['nama_urusan']
                 l2['Sort_Key'] = l2['kode_skpd'] + "|" + l2['kode_urusan']
-                l2['Level'] = 2 # <-- Penanda Level
+                l2['Level'] = 2
                 kumpulan_level.append(l2)
                 
                 # 3. Level Program
                 l3 = df_pivot.groupby(['kode_skpd', 'kode_urusan', 'kode_program', 'nama_program'])[list_tahapan].sum().reset_index()
                 l3['Kode'], l3['Uraian'] = l3['kode_program'], l3['nama_program']
                 l3['Sort_Key'] = l3['kode_skpd'] + "|" + l3['kode_urusan'] + "|" + l3['kode_program']
-                l3['Level'] = 3 # <-- Penanda Level
+                l3['Level'] = 3
                 kumpulan_level.append(l3)
                 
                 # 4. Level Kegiatan
                 l4 = df_pivot.groupby(['kode_skpd', 'kode_urusan', 'kode_program', 'kode_kegiatan', 'nama_kegiatan'])[list_tahapan].sum().reset_index()
                 l4['Kode'], l4['Uraian'] = l4['kode_kegiatan'], l4['nama_kegiatan']
                 l4['Sort_Key'] = l4['kode_skpd'] + "|" + l4['kode_urusan'] + "|" + l4['kode_program'] + "|" + l4['kode_kegiatan']
-                l4['Level'] = 4 # <-- Penanda Level
+                l4['Level'] = 4
                 kumpulan_level.append(l4)
                 
                 # 5. Level Sub Kegiatan
                 l5 = df_pivot.copy() 
                 l5['Kode'], l5['Uraian'] = l5['kode_sub_kegiatan'], l5['nama_sub_kegiatan']
                 l5['Sort_Key'] = l5['kode_skpd'] + "|" + l5['kode_urusan'] + "|" + l5['kode_program'] + "|" + l5['kode_kegiatan'] + "|" + l5['kode_sub_kegiatan']
-                l5['Level'] = 5 # <-- Penanda Level
+                l5['Level'] = 5
                 
-                # Gabungkan teks Sumber Dana khusus ke Level 5 (Sub Kegiatan)
+                # Gabungkan teks Sumber Dana
                 l5 = pd.merge(l5, sd_final, on=['kode_skpd', 'kode_urusan', 'kode_program', 'kode_kegiatan', 'kode_sub_kegiatan'], how='left')
                 kumpulan_level.append(l5)
                 
@@ -327,47 +347,58 @@ elif menu_pilihan == "Rekap SIPD":
                 df_rekap = pd.concat(kumpulan_level, ignore_index=True)
                 df_rekap = df_rekap.sort_values('Sort_Key').reset_index(drop=True)
                 
-                # Susun ulang kolom hasil akhir (Tanpa kolom 'Level')
+                # Susun ulang kolom hasil akhir
                 kolom_final = ['Kode', 'Uraian', 'Sumber Dana'] + list_tahapan
                 df_tampil = df_rekap[kolom_final].copy()
                 df_tampil['Sumber Dana'] = df_tampil['Sumber Dana'].fillna("")
                 
-                # LANGKAH E: PROSES WARNA DAN BOLD BERDASARKAN LEVEL
+                # LANGKAH E: PROSES WARNA (BARIS & HEADER)
                 def beri_warna_dan_bold(df_t):
-                    # Buat cetakan kosong dengan ukuran yang sama persis
                     style_df = pd.DataFrame('', index=df_t.index, columns=df_t.columns)
-                    
-                    # Looping mewarnai berdasarkan Level di belakang layar
                     for idx, baris in df_rekap.iterrows():
                         lvl = baris['Level']
-                        if lvl == 1:   # SKPD = Biru Muda
+                        if lvl == 1:   
                             style_df.loc[idx, :] = 'background-color: #CFE2F3; font-weight: bold;'
-                        elif lvl == 2: # Urusan = Hijau Muda
+                        elif lvl == 2: 
                             style_df.loc[idx, :] = 'background-color: #D9EAD3; font-weight: bold;'
-                        elif lvl == 3: # Program = Kuning Muda
+                        elif lvl == 3: 
                             style_df.loc[idx, :] = 'background-color: #FFF2CC; font-weight: bold;'
-                        elif lvl == 4: # Kegiatan = Oranye Muda
+                        elif lvl == 4: 
                             style_df.loc[idx, :] = 'background-color: #FCE5CD; font-weight: bold;'
-                        # Level 5 (Sub Kegiatan) tidak diisi apa-apa, akan mengikuti default (putih biasa)
-                        
                     return style_df
 
-                # Bungkus data dengan warna
-                styled_df = df_tampil.style.apply(beri_warna_dan_bold, axis=None)
+                # Desain warna khusus untuk Judul Tabel (Header)
+                gaya_header = [{
+                    'selector': 'th',
+                    'props': [
+                        ('background-color', '#1E3A8A'), # Warna Biru Tua Elegan
+                        ('color', 'white'),              # Teks Putih
+                        ('font-weight', 'bold'),
+                        ('text-align', 'center'),
+                        ('font-size', '15px')
+                    ]
+                }]
+
+                # Terapkan gaya baris + gaya header sekaligus
+                styled_df = df_tampil.style.apply(beri_warna_dan_bold, axis=None).set_table_styles(gaya_header)
                 
                 # TAMPILKAN HASILNYA
-                st.success("🎉 Rekap Berhasil Dibuat!")
+                pesan_sukses = "Semua SKPD" if skpd_pilihan == "SEMUA SKPD" else skpd_pilihan
+                st.success(f"🎉 Rekap untuk {pesan_sukses} Berhasil Dibuat!")
                 st.dataframe(styled_df, use_container_width=True)
                 
                 # SIAPKAN TOMBOL DOWNLOAD EXCEL
                 output_excel = io.BytesIO()
-                styled_df.to_excel(output_excel, index=False, engine='openpyxl') # Export membawa warnanya!
+                styled_df.to_excel(output_excel, index=False, engine='openpyxl')
                 output_excel.seek(0)
+                
+                # Penamaan file otomatis mengikuti nama SKPD yang difilter
+                nama_file_skpd = "SEMUA_SKPD" if skpd_pilihan == "SEMUA SKPD" else skpd_pilihan.replace(" ", "_").replace("/", "_")
                 
                 st.download_button(
                     label="📥 Download Excel Rekap (Format Warna)",
                     data=output_excel,
-                    file_name=f"Rekap_SIPD_Acuan_{tahapan_acuan.replace(' ', '_')}.xlsx",
+                    file_name=f"Rekap_{nama_file_skpd}_{tahapan_acuan.replace(' ', '_')}.xlsx",
                     mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                     type="primary"
                 )
