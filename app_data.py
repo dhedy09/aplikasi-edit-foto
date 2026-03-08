@@ -446,8 +446,7 @@ elif menu_pilihan == "Rekap SIPD":
                     kolom_final_sd = ['nama_sumber_dana'] + kolom_angka_sd
                     df_hasil_sd = rekap_sd[kolom_final_sd].copy()
 
-                    # --- TAMBAHAN BARU: HITUNG TOTAL KESELURUHAN ---
-                    # Membuat baris baru yang berisi total dari setiap kolom angka
+                    # --- BARIS TOTAL KESELURUHAN ---
                     baris_total = pd.DataFrame([df_hasil_sd[kolom_angka_sd].sum()])
                     baris_total['nama_sumber_dana'] = "=== TOTAL KESELURUHAN ==="
                     
@@ -455,25 +454,24 @@ elif menu_pilihan == "Rekap SIPD":
                     df_hasil_sd = pd.concat([df_hasil_sd, baris_total], ignore_index=True)
                     # ------------------------------------------------
 
-                    # Tampilkan ke layar
                     format_dict_sd = {col: "{:,.0f}" for col in kolom_angka_sd}
                     
-                    # Opsional: Memberi warna bold (tebal) untuk baris Total agar lebih mencolok
-                    def highlight_total(row):
-                        if row['nama_sumber_dana'] == "=== TOTAL KESELURUHAN ===":
-                            return ['background-color: #ffe699; font-weight: bold'] * len(row)
-                        return [''] * len(row)
-
-                    styled_sd_web = df_hasil_sd.style.apply(highlight_total, axis=1).format(format_dict_sd)
+                    # TAMPILAN WEB: Tampil normal (hanya diformat angkanya)
+                    styled_sd_web = df_hasil_sd.style.format(format_dict_sd)
 
                     st.success(f"✅ Rekap Sumber Dana Berhasil Dibuat!")
                     st.dataframe(styled_sd_web, use_container_width=True, height=500)
 
-                    # Export Excel khusus Sumber Dana
+                    # TAMPILAN EXCEL: Baru diberi warna untuk Total
+                    def highlight_total_excel(row):
+                        if row['nama_sumber_dana'] == "=== TOTAL KESELURUHAN ===":
+                            return ['background-color: #ffe699; font-weight: bold'] * len(row)
+                        return [''] * len(row)
+
                     import io
                     output_excel_sd = io.BytesIO()
                     with pd.ExcelWriter(output_excel_sd, engine='openpyxl') as writer:
-                        styled_sd_excel = df_hasil_sd.style.apply(highlight_total, axis=1).format(format_dict_sd)
+                        styled_sd_excel = df_hasil_sd.style.apply(highlight_total_excel, axis=1).format(format_dict_sd)
                         styled_sd_excel.to_excel(writer, index=False, sheet_name=f'SumberDana_{tahun_pilihan}')
                     output_excel_sd.seek(0)
                     
