@@ -208,7 +208,7 @@ elif menu_pilihan == "Import SIPD":
         st.warning("⚠️ Silakan isi kotak **Nama Tahapan** terlebih dahulu untuk memunculkan tombol upload.")
 
 # -------------------------------------------------------------------------
-# --- MODUL 3: REKAP SIPD (VERSI FINAL - TAB HIERARKI & SUMBER DANA) ---
+# --- MODUL 3: REKAP SIPD (VERSI FINAL - TAB HIERARKI & SUMBER DANA + TOTAL) ---
 # -------------------------------------------------------------------------
 elif menu_pilihan == "Rekap SIPD":
     st.title("📊 Rekapitulasi SIPD")
@@ -330,7 +330,7 @@ elif menu_pilihan == "Rekap SIPD":
                         pivot['Level'] = level_num
                         return pivot
 
-                    # Level 1-5 (Persis seperti yang dikunci)
+                    # Level 1-5
                     l1 = hitung_level(df_proses, ['kode_skpd', 'nama_skpd'], 1)
                     l1['Kode'], l1['Uraian'], l1['Sort_Key'] = l1['kode_skpd'], l1['nama_skpd'], l1['kode_skpd']
                     kumpulan_level.append(l1)
@@ -417,7 +417,7 @@ elif menu_pilihan == "Rekap SIPD":
                     )
 
         # -------------------------------------------------------------------
-        # TAB 2: REKAP SUMBER DANA (KODE BARU LOGIKA SQL SEDERHANA)
+        # TAB 2: REKAP SUMBER DANA + TOTAL KESELURUHAN
         # -------------------------------------------------------------------
         with tab2:
             if st.button(f"🚀 PROSES REKAP SUMBER DANA", type="primary", use_container_width=True, key="btn_tab2"):
@@ -441,22 +441,40 @@ elif menu_pilihan == "Rekap SIPD":
                     # Urutkan berdasarkan pagu terbesar di tahapan akhir
                     rekap_sd = rekap_sd.sort_values(by=tahap_akhir, ascending=False).reset_index(drop=True)
 
-                    # Tentukan kolom final
-                    kolom_final_sd = ['nama_sumber_dana'] + list_tahapan + ['Selisih (Akhir - Awal)']
-                    df_hasil_sd = rekap_sd[kolom_final_sd]
+                    # Tentukan kolom final dan kolom angka
+                    kolom_angka_sd = list_tahapan + ['Selisih (Akhir - Awal)']
+                    kolom_final_sd = ['nama_sumber_dana'] + kolom_angka_sd
+                    df_hasil_sd = rekap_sd[kolom_final_sd].copy()
+
+                    # --- TAMBAHAN BARU: HITUNG TOTAL KESELURUHAN ---
+                    # Membuat baris baru yang berisi total dari setiap kolom angka
+                    baris_total = pd.DataFrame([df_hasil_sd[kolom_angka_sd].sum()])
+                    baris_total['nama_sumber_dana'] = "=== TOTAL KESELURUHAN ==="
+                    
+                    # Gabungkan tabel data dengan baris total di bagian paling bawah
+                    df_hasil_sd = pd.concat([df_hasil_sd, baris_total], ignore_index=True)
+                    # ------------------------------------------------
 
                     # Tampilkan ke layar
-                    kolom_angka_sd = list_tahapan + ['Selisih (Akhir - Awal)']
                     format_dict_sd = {col: "{:,.0f}" for col in kolom_angka_sd}
                     
+                    # Opsional: Memberi warna bold (tebal) untuk baris Total agar lebih mencolok
+                    def highlight_total(row):
+                        if row['nama_sumber_dana'] == "=== TOTAL KESELURUHAN ===":
+                            return ['background-color: #ffe699; font-weight: bold'] * len(row)
+                        return [''] * len(row)
+
+                    styled_sd_web = df_hasil_sd.style.apply(highlight_total, axis=1).format(format_dict_sd)
+
                     st.success(f"✅ Rekap Sumber Dana Berhasil Dibuat!")
-                    st.dataframe(df_hasil_sd.style.format(format_dict_sd), use_container_width=True, height=500)
+                    st.dataframe(styled_sd_web, use_container_width=True, height=500)
 
                     # Export Excel khusus Sumber Dana
                     import io
                     output_excel_sd = io.BytesIO()
                     with pd.ExcelWriter(output_excel_sd, engine='openpyxl') as writer:
-                        df_hasil_sd.to_excel(writer, index=False, sheet_name=f'SumberDana_{tahun_pilihan}')
+                        styled_sd_excel = df_hasil_sd.style.apply(highlight_total, axis=1).format(format_dict_sd)
+                        styled_sd_excel.to_excel(writer, index=False, sheet_name=f'SumberDana_{tahun_pilihan}')
                     output_excel_sd.seek(0)
                     
                     nama_file_sd = "SEMUA_SKPD" if skpd_pilihan == "SEMUA SKPD" else skpd_pilihan.replace(" ", "_").replace("/", "_")
