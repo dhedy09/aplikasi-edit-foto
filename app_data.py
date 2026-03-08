@@ -312,9 +312,9 @@ elif menu_pilihan == "Rekap SIPD":
             tahap_akhir = st.selectbox("📈 Tahapan Akhir (Selisih):", list_tahapan, index=len(list_tahapan)-1)
 
         if st.button(f"🚀 PROSES & BUAT REKAP", type="primary", use_container_width=True):
-            with st.spinner("Membangun Pivot Table setara SQL..."):
+            with st.spinner("Menjalankan Logika Query SQL murni..."):
                 
-                # 1. BUAT KAMUS NAMA (VLOOKUP)
+                # 1. BUAT KAMUS NAMA (Uraian)
                 dict_nama = {}
                 for c_kode, c_nama in [('kode_skpd','nama_skpd'), ('kode_urusan','nama_urusan'), 
                                        ('kode_program','nama_program'), ('kode_kegiatan','nama_kegiatan'), 
@@ -322,30 +322,40 @@ elif menu_pilihan == "Rekap SIPD":
                     temp = df_proses[df_proses[c_kode] != ""].drop_duplicates(c_kode).set_index(c_kode)[c_nama].to_dict()
                     dict_nama.update(temp)
 
-                # 2. MESIN UTAMA: PIVOT TABLE MURNI (Mencegah data ganda)
-                df_pivot = pd.pivot_table(
-                    df_proses,
-                    values='pagu',
-                    index=['kode_skpd', 'kode_urusan', 'kode_program', 'kode_kegiatan', 'kode_sub_kegiatan'],
-                    columns='tahapan',
-                    aggfunc='sum',
-                    fill_value=0
-                ).reset_index()
-
-                # Pastikan semua tahapan terpilih ada di kolom
-                for t in list_tahapan:
-                    if t not in df_pivot.columns:
-                        df_pivot[t] = 0
-
-                # 3. PECAH KE DALAM LEVEL DARI SATU SUMBER (SINGLE SOURCE OF TRUTH)
+                # 2. LOGIKA QUERY SQL MURNI (Sama persis dengan query Anda)
                 kumpulan_level = []
 
-                # L5: SUB KEGIATAN
-                l5 = df_pivot.copy()
+                # LEVEL 1: SKPD
+                # Setara: SELECT kode_skpd, tahapan, SUM(pagu) ... GROUP BY kode_skpd, tahapan
+                l1 = df_proses.groupby(['kode_skpd', 'tahapan'], dropna=False)['pagu'].sum().unstack(fill_value=0).reset_index()
+                l1['Level'], l1['Kode'] = 1, l1['kode_skpd']
+                l1['Sort_Key'] = l1['kode_skpd']
+                kumpulan_level.append(l1)
+
+                # LEVEL 2: URUSAN
+                l2 = df_proses.groupby(['kode_skpd', 'kode_urusan', 'tahapan'], dropna=False)['pagu'].sum().unstack(fill_value=0).reset_index()
+                l2['Level'], l2['Kode'] = 2, l2['kode_urusan']
+                l2['Sort_Key'] = l2['kode_skpd'] + "|" + l2['kode_urusan']
+                kumpulan_level.append(l2)
+
+                # LEVEL 3: PROGRAM
+                l3 = df_proses.groupby(['kode_skpd', 'kode_urusan', 'kode_program', 'tahapan'], dropna=False)['pagu'].sum().unstack(fill_value=0).reset_index()
+                l3['Level'], l3['Kode'] = 3, l3['kode_program']
+                l3['Sort_Key'] = l3['kode_skpd'] + "|" + l3['kode_urusan'] + "|" + l3['kode_program']
+                kumpulan_level.append(l3)
+
+                # LEVEL 4: KEGIATAN
+                l4 = df_proses.groupby(['kode_skpd', 'kode_urusan', 'kode_program', 'kode_kegiatan', 'tahapan'], dropna=False)['pagu'].sum().unstack(fill_value=0).reset_index()
+                l4['Level'], l4['Kode'] = 4, l4['kode_kegiatan']
+                l4['Sort_Key'] = l4['kode_skpd'] + "|" + l4['kode_urusan'] + "|" + l4['kode_program'] + "|" + l4['kode_kegiatan']
+                kumpulan_level.append(l4)
+
+                # LEVEL 5: SUB KEGIATAN
+                l5 = df_proses.groupby(['kode_skpd', 'kode_urusan', 'kode_program', 'kode_kegiatan', 'kode_sub_kegiatan', 'tahapan'], dropna=False)['pagu'].sum().unstack(fill_value=0).reset_index()
                 l5['Level'], l5['Kode'] = 5, l5['kode_sub_kegiatan']
                 l5['Sort_Key'] = l5['kode_skpd'] + "|" + l5['kode_urusan'] + "|" + l5['kode_program'] + "|" + l5['kode_kegiatan'] + "|" + l5['kode_sub_kegiatan']
                 
-                # Tambah Sumber Dana Acuan
+                # --- Sumber Dana (Acuan) untuk Level 5 ---
                 df_sd = df_proses[df_proses['tahapan'] == tahapan_acuan]
                 sd_grouped = df_sd[df_sd['pagu'] > 0].groupby(['kode_sub_kegiatan', 'nama_sumber_dana'])['pagu'].sum().reset_index()
                 if not sd_grouped.empty:
@@ -353,35 +363,21 @@ elif menu_pilihan == "Rekap SIPD":
                     sd_final = sd_grouped.groupby('kode_sub_kegiatan')['teks_sd'].apply(lambda x: ''.join(x).strip()).reset_index()
                     sd_final.rename(columns={'teks_sd': 'Sumber Dana (Acuan)'}, inplace=True)
                     l5 = pd.merge(l5, sd_final, on='kode_sub_kegiatan', how='left')
+                
                 kumpulan_level.append(l5)
 
-                # L4: KEGIATAN
-                l4 = df_pivot.groupby(['kode_skpd', 'kode_urusan', 'kode_program', 'kode_kegiatan'])[list_tahapan].sum().reset_index()
-                l4['Level'], l4['Kode'] = 4, l4['kode_kegiatan']
-                l4['Sort_Key'] = l4['kode_skpd'] + "|" + l4['kode_urusan'] + "|" + l4['kode_program'] + "|" + l4['kode_kegiatan']
-                kumpulan_level.append(l4)
-
-                # L3: PROGRAM
-                l3 = df_pivot.groupby(['kode_skpd', 'kode_urusan', 'kode_program'])[list_tahapan].sum().reset_index()
-                l3['Level'], l3['Kode'] = 3, l3['kode_program']
-                l3['Sort_Key'] = l3['kode_skpd'] + "|" + l3['kode_urusan'] + "|" + l3['kode_program']
-                kumpulan_level.append(l3)
-
-                # L2: URUSAN
-                l2 = df_pivot.groupby(['kode_skpd', 'kode_urusan'])[list_tahapan].sum().reset_index()
-                l2['Level'], l2['Kode'] = 2, l2['kode_urusan']
-                l2['Sort_Key'] = l2['kode_skpd'] + "|" + l2['kode_urusan']
-                kumpulan_level.append(l2)
-
-                # L1: SKPD
-                l1 = df_pivot.groupby(['kode_skpd'])[list_tahapan].sum().reset_index()
-                l1['Level'], l1['Kode'] = 1, l1['kode_skpd']
-                l1['Sort_Key'] = l1['kode_skpd']
-                kumpulan_level.append(l1)
-
-                # 4. GABUNGKAN & RAPIKAN TABEL
+                # 3. GABUNGKAN & RAPIKAN TABEL
                 df_rekap = pd.concat(kumpulan_level, ignore_index=True)
                 
+                # Pastikan kolom tahapan lengkap
+                for t in list_tahapan:
+                    if t not in df_rekap.columns:
+                        df_rekap[t] = 0
+
+                # Bersihkan data kosong / NaN
+                df_rekap = df_rekap.dropna(subset=['Kode'])
+                df_rekap = df_rekap[df_rekap['Kode'] != ""]
+
                 df_rekap['Uraian'] = df_rekap['Kode'].map(dict_nama).fillna("-")
                 df_rekap['Selisih (Akhir - Awal)'] = df_rekap[tahap_akhir] - df_rekap[tahap_awal]
                 
@@ -394,7 +390,7 @@ elif menu_pilihan == "Rekap SIPD":
                 kolom_final = ['Kode', 'Uraian', 'Sumber Dana (Acuan)', 'Level'] + list_tahapan + ['Selisih (Akhir - Awal)']
                 df_hasil = df_rekap[kolom_final]
 
-                # 5. RENDER TAMPILAN WEB
+                # 4. RENDER TAMPILAN WEB
                 df_tampil = df_hasil.drop(columns=['Level'])
                 
                 kolom_angka = list_tahapan + ['Selisih (Akhir - Awal)']
@@ -402,7 +398,7 @@ elif menu_pilihan == "Rekap SIPD":
                 
                 styled_df_web = df_tampil.style.format(format_dict).set_properties(subset=['Sumber Dana (Acuan)'], **{'white-space': 'pre-wrap'})
                 
-                st.success(f"✅ Kalkulasi Pivot Selesai! Angka Level SKPD dijamin 100% sama dengan hasil SQL Anda.")
+                st.success(f"✅ Selesai! Menggunakan logika SQL murni. Silakan cek angka teratasnya.")
                 st.dataframe(styled_df_web, use_container_width=True, height=600)
 
                 # 6. EXPORT EXCEL
@@ -429,6 +425,7 @@ elif menu_pilihan == "Rekap SIPD":
                     mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                     type="primary"
                 )
+
 
 
 
