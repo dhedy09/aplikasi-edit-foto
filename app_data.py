@@ -215,44 +215,63 @@ elif menu_pilihan == "Rekap SIPD":
     st.title("📊 Sistem Rekapitulasi SIPD Terpadu")
     st.write("Buat laporan perbandingan Pagu antar tahapan dengan format berjenjang (SKPD hingga Sub Kegiatan).")
     
-    # 1. AMBIL SELURUH DATA DARI DATABASE
-    with st.spinner("⏳ Menghubungkan ke server dan mengunduh seluruh data..."):
+    # --- FUNGSI CACHING: TARIK DATA SEKALI SAJA ---
+    @st.cache_data(ttl=3600, show_spinner=False) # Data disimpan di memori selama 1 jam
+    def tarik_data_database():
+        semua_data = []
+        offset = 0
+        limit = 1000
+        while True:
+            res = supabase.table("rekap_sipd").select("*").range(offset, offset + limit - 1).execute()
+            data_tarikan = res.data
+            if not data_tarikan:
+                break
+            semua_data.extend(data_tarikan)
+            if len(data_tarikan) < limit:
+                break
+            offset += limit
+        return pd.DataFrame(semua_data)
+
+    # 1. AMBIL SELURUH DATA DARI DATABASE (Atau dari Memori)
+    with st.spinner("⏳ Menyiapkan data... (Jika baru pertama buka, ini butuh waktu. Selanjutnya akan instan)"):
         try:
-            semua_data = []
-            offset = 0
-            limit = 1000
-            while True:
-                res = supabase.table("rekap_sipd").select("*").range(offset, offset + limit - 1).execute()
-                data_tarikan = res.data
-                if not data_tarikan:
-                    break
-                semua_data.extend(data_tarikan)
-                if len(data_tarikan) < limit:
-                    break
-                offset += limit
-                
-            df = pd.DataFrame(semua_data)
+            df = tarik_data_database()
         except Exception as e:
             st.error(f"❌ Gagal menarik data dari database: {e}")
             df = pd.DataFrame() 
 
+    # Tombol untuk Refresh / Kosongkan Memori jika ada data baru diupload
+    if st.button("🔄 Refresh Data Database"):
+        tarik_data_database.clear()
+        st.rerun()
+
     if df.empty:
         st.info("💡 Database masih kosong atau tidak ada data. Silakan Import SIPD terlebih dahulu.")
     else:
-        st.success(f"✅ Berhasil memuat {len(df)} baris data dari Database!")
+        st.success(f"✅ Berhasil memuat {len(df)} baris data!")
         
         # Rapikan data Pagu agar pasti menjadi angka
         df['pagu'] = pd.to_numeric(df['pagu'], errors='coerce').fillna(0)
         
-        # Ambil daftar tahapan & SKPD dari database
-        list_tahapan = df['tahapan'].unique().tolist()
-        # Mengambil nama SKPD unik, mengurutkannya sesuai abjad, dan menambah opsi "SEMUA SKPD" di atasnya
-        list_skpd = ["SEMUA SKPD"] + sorted([str(x) for x in df['nama_skpd'].dropna().unique().tolist()])
-        
-        # 2. PENGATURAN REKAP & FILTER DI LAYAR
+        # --- PERINGATAN JIKA KOLOM TAHUN BELUM ADA ---
+        if 'tahun' not in df.columns:
+            st.error("⚠️ Sistem mendeteksi kolom 'tahun' tidak ada di database Anda. Pastikan data yang di-upload memiliki kolom tahun.")
+            st.stop()
+
         st.markdown("### ⚙️ Pengaturan Filter & Rekap")
         
-        # Membagi layar jadi 2 kolom agar rapi
+        # 1. FILTER TAHUN (Sebagai Induk Filter)
+        list_tahun = sorted(df['tahun'].dropna().unique().tolist(), reverse=True) # Urutkan tahun dari terbaru
+        tahun_pilihan = st.selectbox("📅 Pilih Tahun Anggaran:", options=list_tahun)
+        
+        # Saring data khusus untuk tahun yang dipilih
+        df_tahun = df[df['tahun'] == tahun_pilihan].copy()
+
+        # 2. AMBIL DAFTAR TAHAPAN & SKPD BERDASARKAN TAHUN PILIHAN
+        list_tahapan = df_tahun['tahapan'].unique().tolist()
+        list_skpd = ["SEMUA SKPD"] + sorted([str(x) for x in df_tahun['nama_skpd'].dropna().unique().tolist()])
+        
+        # 3. KOLOM FILTER SKPD & TAHAPAN
         col_skpd, col_tahapan = st.columns(2)
         with col_skpd:
             skpd_pilihan = st.selectbox(
@@ -270,8 +289,8 @@ elif menu_pilihan == "Rekap SIPD":
         if st.button("🚀 PROSES & BUAT REKAP", type="primary", use_container_width=True):
             with st.spinner("🧠 Sedang meracik Pivot berjenjang... (Memakan waktu beberapa detik)"):
                 
-                # --- FILTER DATA BERDASARKAN SKPD PILIHAN ---
-                df_proses = df.copy()
+                # --- FILTER DATA BERDASARKAN SKPD PILIHAN (Gunakan df_tahun) ---
+                df_proses = df_tahun.copy() # <-- KUNCI: Kita memproses data yang sudah disaring tahunnya
                 if skpd_pilihan != "SEMUA SKPD":
                     df_proses = df_proses[df_proses['nama_skpd'] == skpd_pilihan]
                     
@@ -408,6 +427,7 @@ elif menu_pilihan == "Rekap SIPD":
                     mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                     type="primary"
                 )
+
 
 
 
