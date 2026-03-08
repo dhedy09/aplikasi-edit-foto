@@ -3,7 +3,8 @@ import openpyxl
 import io
 import re
 from datetime import datetime
-import pandas as pd # <--- Library andalan untuk mengolah jutaan baris data
+import pandas as pd
+from streamlit_option_menu import option_menu # <--- Library Menu Modern
 
 # 1. Judul Halaman
 st.set_page_config(page_title="Olah Data & SIPD", layout="wide", page_icon="📊")
@@ -29,21 +30,35 @@ if not st.session_state.authenticated:
     st.stop()
 
 # ==========================================
-# 3. MENU NAVIGASI (SIDEBAR)
+# 3. MENU NAVIGASI MODERN (SIDEBAR)
 # ==========================================
 with st.sidebar:
-    st.title("⚙️ Main Menu")
-    menu_pilihan = st.radio(
-        "Pilih Modul Aplikasi:",
-        ["🧰 Alat Excel (Petik & Bersih)", "📥 1. Import Data SIPD", "📊 2. Rekap SIPD (Coming Soon)"]
-    )
+    st.markdown("<h2 style='text-align: center;'>📊 Mamayo Data</h2>", unsafe_allow_html=True)
     st.markdown("---")
-    st.caption("Dikembangkan dengan Python & Streamlit")
+    
+    # Menu Navigasi ala Web Profesional
+    menu_pilihan = option_menu(
+        menu_title=None,  # Tidak perlu judul karena sudah ada di atas
+        options=["Alat Excel", "Import SIPD", "Rekap SIPD"],
+        icons=["wrench-adjustable", "cloud-arrow-up-fill", "bar-chart-steps"], # Ikon dari Bootstrap
+        default_index=0,
+        styles={
+            "container": {"padding": "0!important", "background-color": "transparent"},
+            "icon": {"color": "#ffc107", "font-size": "18px"}, 
+            "nav-link": {"font-size": "15px", "text-align": "left", "margin":"5px", "--hover-color": "#262730"},
+            "nav-link-selected": {"background-color": "#0083B8", "color": "white"},
+        }
+    )
+    
+    st.markdown("---")
+    st.caption("🚀 Dikembangkan dengan Python & Streamlit")
 
 # ==========================================
-# MODUL 1: ALAT EXCEL (YANG SUDAH KITA BUAT)
+# KONTEN BERDASARKAN MENU YANG DIPILIH
 # ==========================================
-if menu_pilihan == "🧰 Alat Excel (Petik & Bersih)":
+
+# --- MODUL 1: ALAT EXCEL ---
+if menu_pilihan == "Alat Excel":
     st.title("🛠️ Manipulasi Petik & Pembersih Karakter")
     st.write("Gunakan alat ini untuk merapikan data Dapodik/SIPD dalam satu kali jalan.")
     
@@ -119,10 +134,8 @@ if menu_pilihan == "🧰 Alat Excel (Petik & Bersih)":
                     except Exception as e:
                         st.error(f"❌ Terjadi kesalahan: {e}")
 
-# ==========================================
-# MODUL 2: IMPORT DATA SIPD (TAHAP 1)
-# ==========================================
-elif menu_pilihan == "📥 1. Import Data SIPD":
+# --- MODUL 2: IMPORT SIPD ---
+elif menu_pilihan == "Import SIPD":
     st.title("📥 Import & Pelabelan Data SIPD")
     st.write("Unggah data mentah tarikan SIPD Anda di sini untuk diseragamkan dan diberi label Tahapan sebelum masuk ke sistem rekap.")
     
@@ -138,21 +151,15 @@ elif menu_pilihan == "📥 1. Import Data SIPD":
         if st.button("⚡ PROSES & LABELI DATA", type="primary", use_container_width=True):
             with st.spinner("Membaca dan menyuntikkan label tahapan..."):
                 try:
-                    # 1. Baca data Excel menggunakan Pandas
                     df_sipd = pd.read_excel(file_sipd)
-                    
-                    # 2. Tambahkan kolom TAHAPAN di paling ujung kanan
                     df_sipd['TAHAPAN'] = nama_tahapan
                     
                     st.success(f"✅ Berhasil memproses {len(df_sipd)} baris data dan menambahkan label '{nama_tahapan}'.")
                     
-                    # 3. Tampilkan Preview Datanya
                     st.write("👀 **Preview Data:**")
                     st.dataframe(df_sipd.head(10), use_container_width=True)
                     
-                    # 4. Siapkan file untuk di-download (Sebagai Master Data siap rekap)
                     output_sipd = io.BytesIO()
-                    # Simpan ke Excel tanpa menyertakan nomor index pandas (index=False)
                     df_sipd.to_excel(output_sipd, index=False, engine='openpyxl')
                     output_sipd.seek(0)
                     
@@ -169,9 +176,7 @@ elif menu_pilihan == "📥 1. Import Data SIPD":
     elif file_sipd and not nama_tahapan:
         st.warning("⚠️ Silakan isi kotak **Nama Tahapan** terlebih dahulu untuk memunculkan tombol proses.")
 
-# ==========================================
-# MODUL 3: REKAP SIPD (COMING SOON)
-# ==========================================
-elif menu_pilihan == "📊 2. Rekap SIPD (Coming Soon)":
+# --- MODUL 3: REKAP SIPD ---
+elif menu_pilihan == "Rekap SIPD":
     st.title("📊 Sistem Rekapitulasi SIPD")
     st.info("🚧 Modul ini sedang dalam tahap pengembangan. Nantinya di sini kita bisa menarik data, membuat pivot, dan membandingkan pagu antar tahapan.")
