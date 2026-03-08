@@ -214,7 +214,7 @@ elif menu_pilihan == "Rekap SIPD":
     st.title("📊 Rekapitulasi Perbandingan Tahapan")
     st.write("Tabel rekapitulasi hierarki anggaran dengan perbandingan antar tahapan.")
     
-    # 1. AMBIL SEMUA DATA DENGAN PAGINATION (Tanpa Limit 1000 baris)
+    # 1. AMBIL SEMUA DATA DENGAN PAGINATION
     @st.cache_data(ttl=3600, show_spinner=False)
     def tarik_data_database():
         semua_data = []
@@ -273,12 +273,7 @@ elif menu_pilihan == "Rekap SIPD":
         
         df_tahun = df[df['tahun'] == tahun_pilihan].copy()
 
-        # 3. FILTER SKPD (Khusus Tahun Terpilih)
-        # Menyatukan SOTK Lama & Baru untuk Dinas Pendidikan jika ada
-        MAP_SKPD = {"1.01.2.22.0.00.16.0000": "1.01.0.00.0.00.16.0000"}
-        df_tahun['kode_skpd'] = df_tahun['kode_skpd'].replace(MAP_SKPD)
-        df_tahun.loc[df_tahun['kode_skpd'] == "1.01.0.00.0.00.16.0000", 'nama_skpd'] = "Dinas Pendidikan"
-
+        # 3. FILTER SKPD (Khusus Tahun Terpilih, Tanpa Hardcode SOTK)
         list_skpd = sorted(df_tahun['nama_skpd'].dropna().unique().tolist())
         list_skpd = [x for x in list_skpd if x != ""]
         list_skpd.insert(0, "SEMUA SKPD")
@@ -314,11 +309,11 @@ elif menu_pilihan == "Rekap SIPD":
         if st.button(f"🚀 PROSES & BUAT REKAP", type="primary", use_container_width=True):
             with st.spinner("Menyusun hierarki dan menghitung ulang pagu secara presisi..."):
                 
-                # PERTAHANAN: Buang Baris Subtotal dari Excel (Hanya hitung yang punya sub kegiatan)
+                # PERTAHANAN: Buang Baris Subtotal dari Excel
                 df_proses = df_proses[df_proses['kode_sub_kegiatan'].astype(str).str.strip() != ""]
                 df_proses = df_proses[~df_proses['kode_sub_kegiatan'].astype(str).str.lower().isin(['none', 'nan'])]
 
-                # 5. MEMBANGUN MEMORI KALKULASI (Mesin Hierarki yang Akurat)
+                # 5. MEMBANGUN MEMORI KALKULASI
                 dict_pagu = defaultdict(float)
                 dict_nama = {}
                 dict_sd = defaultdict(lambda: defaultdict(float))
@@ -361,7 +356,7 @@ elif menu_pilihan == "Rekap SIPD":
                     if thp == tahapan_acuan:
                         dict_sd[k_sub][sd] += pagu
 
-                # 6. MENYUSUN BARIS DATA (FLAT TABLE)
+                # 6. MENYUSUN BARIS DATA
                 baris_rekap = []
 
                 def format_rupiah(angka):
@@ -410,16 +405,17 @@ elif menu_pilihan == "Rekap SIPD":
 
                 # 7. RENDER KE DATAFRAME DAN STYLING
                 df_hasil = pd.DataFrame(baris_rekap)
+                df_tampil = df_hasil.drop(columns=['Level'])
                 
+                # PERBAIKAN KEYERROR: Mengambil 'Level' dari df_hasil menggunakan index baris
                 def warna_baris(row):
-                    lvl = row['Level']
+                    lvl = df_hasil.loc[row.name, 'Level']
                     if lvl == 1: return ['background-color: #ddebf7; font-weight: bold'] * len(row)
                     if lvl == 2: return ['background-color: #fff2cc; font-weight: bold'] * len(row)
                     if lvl == 3: return ['background-color: #fce4d6; font-weight: bold'] * len(row)
                     if lvl == 4: return ['background-color: #e2efda; font-weight: bold'] * len(row)
                     return ['background-color: white'] * len(row)
 
-                df_tampil = df_hasil.drop(columns=['Level'])
                 kolom_angka = list_tahapan + ['Selisih (Akhir - Awal)']
                 format_dict = {col: "{:,.0f}" for col in kolom_angka}
                 
@@ -434,7 +430,7 @@ elif menu_pilihan == "Rekap SIPD":
                     df_tampil.to_excel(writer, index=False, sheet_name=f'Rekap_{tahun_pilihan}')
                 output_excel.seek(0)
                 
-                nama_file = "SEMUA_SKPD" if skpd_pilihan == "SEMUA SKPD" else "Dinas_Pendidikan"
+                nama_file = "SEMUA_SKPD" if skpd_pilihan == "SEMUA SKPD" else skpd_pilihan.replace(" ", "_").replace("/", "_")
                 
                 st.download_button(
                     label=f"📥 Download Hasil Rekap (Excel)",
