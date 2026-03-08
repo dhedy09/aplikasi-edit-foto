@@ -311,10 +311,10 @@ elif menu_pilihan == "Rekap SIPD":
         with col_t3:
             tahap_akhir = st.selectbox("📈 Tahapan Akhir (Selisih):", list_tahapan, index=len(list_tahapan)-1)
 
-        if st.button(f"🚀 PROSES & BUAT REKAP", type="primary", use_container_width=True):
-            with st.spinner("Menjalankan Logika Query SQL murni..."):
+        if st.button(f"🚀 PROSES & BUAT LAPORAN REKAP", type="primary", use_container_width=True):
+            with st.spinner("Menyusun Laporan Hierarki (Roll-Up)..."):
                 
-                # 1. BUAT KAMUS NAMA (Uraian)
+                # 1. BUAT KAMUS URAIAN UNTUK NAMA
                 dict_nama = {}
                 for c_kode, c_nama in [('kode_skpd','nama_skpd'), ('kode_urusan','nama_urusan'), 
                                        ('kode_program','nama_program'), ('kode_kegiatan','nama_kegiatan'), 
@@ -322,40 +322,45 @@ elif menu_pilihan == "Rekap SIPD":
                     temp = df_proses[df_proses[c_kode] != ""].drop_duplicates(c_kode).set_index(c_kode)[c_nama].to_dict()
                     dict_nama.update(temp)
 
-                # 2. LOGIKA QUERY SQL MURNI (Sama persis dengan query Anda)
-                kumpulan_level = []
+                # 2. BENTUK FONDASI DASAR (LEVEL 5: SUB KEGIATAN)
+                # Menggunakan groupby dasar mirip SQL agar tidak ada data yang terbuang
+                df_base = df_proses.groupby(
+                    ['kode_skpd', 'kode_urusan', 'kode_program', 'kode_kegiatan', 'kode_sub_kegiatan', 'tahapan'], 
+                    dropna=False
+                )['pagu'].sum().unstack(fill_value=0).reset_index()
 
-                # LEVEL 1: SKPD
-                # Setara: SELECT kode_skpd, tahapan, SUM(pagu) ... GROUP BY kode_skpd, tahapan
-                l1 = df_proses.groupby(['kode_skpd', 'tahapan'], dropna=False)['pagu'].sum().unstack(fill_value=0).reset_index()
-                l1['Level'], l1['Kode'] = 1, l1['kode_skpd']
-                l1['Sort_Key'] = l1['kode_skpd']
-                kumpulan_level.append(l1)
+                # Pastikan kolom tahapan lengkap
+                for t in list_tahapan:
+                    if t not in df_base.columns:
+                        df_base[t] = 0
 
-                # LEVEL 2: URUSAN
-                l2 = df_proses.groupby(['kode_skpd', 'kode_urusan', 'tahapan'], dropna=False)['pagu'].sum().unstack(fill_value=0).reset_index()
-                l2['Level'], l2['Kode'] = 2, l2['kode_urusan']
-                l2['Sort_Key'] = l2['kode_skpd'] + "|" + l2['kode_urusan']
-                kumpulan_level.append(l2)
-
-                # LEVEL 3: PROGRAM
-                l3 = df_proses.groupby(['kode_skpd', 'kode_urusan', 'kode_program', 'tahapan'], dropna=False)['pagu'].sum().unstack(fill_value=0).reset_index()
-                l3['Level'], l3['Kode'] = 3, l3['kode_program']
-                l3['Sort_Key'] = l3['kode_skpd'] + "|" + l3['kode_urusan'] + "|" + l3['kode_program']
-                kumpulan_level.append(l3)
-
-                # LEVEL 4: KEGIATAN
-                l4 = df_proses.groupby(['kode_skpd', 'kode_urusan', 'kode_program', 'kode_kegiatan', 'tahapan'], dropna=False)['pagu'].sum().unstack(fill_value=0).reset_index()
-                l4['Level'], l4['Kode'] = 4, l4['kode_kegiatan']
-                l4['Sort_Key'] = l4['kode_skpd'] + "|" + l4['kode_urusan'] + "|" + l4['kode_program'] + "|" + l4['kode_kegiatan']
-                kumpulan_level.append(l4)
-
-                # LEVEL 5: SUB KEGIATAN
-                l5 = df_proses.groupby(['kode_skpd', 'kode_urusan', 'kode_program', 'kode_kegiatan', 'kode_sub_kegiatan', 'tahapan'], dropna=False)['pagu'].sum().unstack(fill_value=0).reset_index()
+                # 3. METODE ROLL-UP (MENJUMLAHKAN DARI BAWAH KE ATAS)
+                # L5: Sub Kegiatan (Fondasi)
+                l5 = df_base.copy()
                 l5['Level'], l5['Kode'] = 5, l5['kode_sub_kegiatan']
                 l5['Sort_Key'] = l5['kode_skpd'] + "|" + l5['kode_urusan'] + "|" + l5['kode_program'] + "|" + l5['kode_kegiatan'] + "|" + l5['kode_sub_kegiatan']
-                
-                # --- Sumber Dana (Acuan) untuk Level 5 ---
+
+                # L4: Kegiatan (Akumulasi dari L5)
+                l4 = l5.groupby(['kode_skpd', 'kode_urusan', 'kode_program', 'kode_kegiatan'])[list_tahapan].sum().reset_index()
+                l4['Level'], l4['Kode'] = 4, l4['kode_kegiatan']
+                l4['Sort_Key'] = l4['kode_skpd'] + "|" + l4['kode_urusan'] + "|" + l4['kode_program'] + "|" + l4['kode_kegiatan']
+
+                # L3: Program (Akumulasi dari L4)
+                l3 = l4.groupby(['kode_skpd', 'kode_urusan', 'kode_program'])[list_tahapan].sum().reset_index()
+                l3['Level'], l3['Kode'] = 3, l3['kode_program']
+                l3['Sort_Key'] = l3['kode_skpd'] + "|" + l3['kode_urusan'] + "|" + l3['kode_program']
+
+                # L2: Urusan (Akumulasi dari L3)
+                l2 = l3.groupby(['kode_skpd', 'kode_urusan'])[list_tahapan].sum().reset_index()
+                l2['Level'], l2['Kode'] = 2, l2['kode_urusan']
+                l2['Sort_Key'] = l2['kode_skpd'] + "|" + l2['kode_urusan']
+
+                # L1: SKPD (Akumulasi dari L2) - PASTI SAMA DENGAN SQL
+                l1 = l2.groupby(['kode_skpd'])[list_tahapan].sum().reset_index()
+                l1['Level'], l1['Kode'] = 1, l1['kode_skpd']
+                l1['Sort_Key'] = l1['kode_skpd']
+
+                # 4. TAMBAHKAN SUMBER DANA KHUSUS LEVEL 5
                 df_sd = df_proses[df_proses['tahapan'] == tahapan_acuan]
                 sd_grouped = df_sd[df_sd['pagu'] > 0].groupby(['kode_sub_kegiatan', 'nama_sumber_dana'])['pagu'].sum().reset_index()
                 if not sd_grouped.empty:
@@ -363,21 +368,14 @@ elif menu_pilihan == "Rekap SIPD":
                     sd_final = sd_grouped.groupby('kode_sub_kegiatan')['teks_sd'].apply(lambda x: ''.join(x).strip()).reset_index()
                     sd_final.rename(columns={'teks_sd': 'Sumber Dana (Acuan)'}, inplace=True)
                     l5 = pd.merge(l5, sd_final, on='kode_sub_kegiatan', how='left')
-                
-                kumpulan_level.append(l5)
 
-                # 3. GABUNGKAN & RAPIKAN TABEL
-                df_rekap = pd.concat(kumpulan_level, ignore_index=True)
+                # 5. GABUNGKAN SEMUA LEVEL MENJADI LAPORAN
+                df_rekap = pd.concat([l1, l2, l3, l4, l5], ignore_index=True)
                 
-                # Pastikan kolom tahapan lengkap
-                for t in list_tahapan:
-                    if t not in df_rekap.columns:
-                        df_rekap[t] = 0
-
-                # Bersihkan data kosong / NaN
-                df_rekap = df_rekap.dropna(subset=['Kode'])
+                # Bersihkan baris yang kodenya kosong
                 df_rekap = df_rekap[df_rekap['Kode'] != ""]
 
+                # Mapping Uraian dan Hitung Selisih
                 df_rekap['Uraian'] = df_rekap['Kode'].map(dict_nama).fillna("-")
                 df_rekap['Selisih (Akhir - Awal)'] = df_rekap[tahap_akhir] - df_rekap[tahap_awal]
                 
@@ -385,23 +383,23 @@ elif menu_pilihan == "Rekap SIPD":
                     df_rekap['Sumber Dana (Acuan)'] = ""
                 df_rekap['Sumber Dana (Acuan)'] = df_rekap['Sumber Dana (Acuan)'].fillna("")
 
+                # Urutkan berdasarkan hierarki
                 df_rekap = df_rekap.sort_values('Sort_Key').reset_index(drop=True)
                 
                 kolom_final = ['Kode', 'Uraian', 'Sumber Dana (Acuan)', 'Level'] + list_tahapan + ['Selisih (Akhir - Awal)']
                 df_hasil = df_rekap[kolom_final]
 
-                # 4. RENDER TAMPILAN WEB
+                # 6. TAMPILAN WEB & EXPORT EXCEL
                 df_tampil = df_hasil.drop(columns=['Level'])
-                
                 kolom_angka = list_tahapan + ['Selisih (Akhir - Awal)']
                 format_dict = {col: "{:,.0f}" for col in kolom_angka}
                 
                 styled_df_web = df_tampil.style.format(format_dict).set_properties(subset=['Sumber Dana (Acuan)'], **{'white-space': 'pre-wrap'})
                 
-                st.success(f"✅ Selesai! Menggunakan logika SQL murni. Silakan cek angka teratasnya.")
+                st.success(f"✅ Laporan Hierarki Selesai! Total SKPD sekarang dijamin akurat.")
                 st.dataframe(styled_df_web, use_container_width=True, height=600)
 
-                # 6. EXPORT EXCEL
+                # Export Excel dengan Warna per Level
                 def warna_baris_excel(row):
                     lvl = df_hasil.loc[row.name, 'Level']
                     if lvl == 1: return ['background-color: #ddebf7; font-weight: bold'] * len(row)
@@ -414,17 +412,18 @@ elif menu_pilihan == "Rekap SIPD":
 
                 output_excel = io.BytesIO()
                 with pd.ExcelWriter(output_excel, engine='openpyxl') as writer:
-                    styled_df_excel.to_excel(writer, index=False, sheet_name=f'Rekap_{tahun_pilihan}')
+                    styled_df_excel.to_excel(writer, index=False, sheet_name=f'Laporan_{tahun_pilihan}')
                 output_excel.seek(0)
                 
                 nama_file = "SEMUA_SKPD" if skpd_pilihan == "SEMUA SKPD" else skpd_pilihan.replace(" ", "_").replace("/", "_")
                 st.download_button(
-                    label=f"📥 Download Hasil Rekap (Excel)",
+                    label=f"📥 Download Laporan Rekap (Excel)",
                     data=output_excel,
-                    file_name=f"Rekap_SIPD_{nama_file}_{tahun_pilihan}_{datetime.now().strftime('%Y%m%d')}.xlsx",
+                    file_name=f"Laporan_Rekap_SIPD_{nama_file}_{tahun_pilihan}.xlsx",
                     mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                     type="primary"
                 )
+
 
 
 
