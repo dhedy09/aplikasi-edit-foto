@@ -259,25 +259,21 @@ elif menu_pilihan == "Rekap SIPD":
         tahun_pilihan = st.selectbox("📅 Pilih Tahun Anggaran:", options=list_tahun)
         df_tahun = df[df['tahun'] == tahun_pilihan].copy()
 
-        # =====================================================================
-        # SOLUSI: GANTI KODE SKPD LAMA KE BARU (Tanpa merusak total)
-        # =====================================================================
-        df_tahun['kode_skpd'] = df_tahun['kode_skpd'].replace({"1.01.2.22.0.00.16.0000": "1.01.0.00.0.00.16.0000"})
+        # ---> KODE REPLACE SKPD SUDAH SAYA HAPUS DI SINI AGAR MURNI <---
         
         list_tahapan = df_tahun['tahapan'].unique().tolist()
         
-        # 2. FILTER TAHAPAN ACUAN (Sebagai "Source of Truth" untuk Nama & Sumber Dana)
+        # 2. FILTER TAHAPAN ACUAN (Untuk Sumber Dana)
         col_skpd, col_tahapan = st.columns(2)
         with col_tahapan:
             tahapan_acuan = st.selectbox("📍 Acuan Nama & Sumber Dana:", options=list_tahapan)
             
-        # Perbaiki list SKPD di dropdown agar sesuai dengan nama di Tahapan Acuan
-        df_acuan_dropdown = df_tahun[df_tahun['tahapan'] == tahapan_acuan]
-        dict_nama_skpd = dict(zip(df_acuan_dropdown['kode_skpd'], df_acuan_dropdown['nama_skpd']))
-        dict_nama_skpd_fallback = dict(zip(df_tahun['kode_skpd'], df_tahun['nama_skpd'])) # Jaga-jaga jika kosong di tahapan acuan
-        
-        df_tahun['nama_skpd_dropdown'] = df_tahun['kode_skpd'].map(dict_nama_skpd).fillna(df_tahun['kode_skpd'].map(dict_nama_skpd_fallback))
-        list_skpd = ["SEMUA SKPD"] + sorted([str(x) for x in df_tahun['nama_skpd_dropdown'].dropna().unique().tolist()])
+        # =====================================================================
+        # PERBAIKAN: AMBIL NAMA SKPD MURNI LANGSUNG DARI DATABASE
+        # =====================================================================
+        list_skpd_murni = df_tahun['nama_skpd'].dropna().unique().tolist()
+        list_skpd_murni = [str(x).strip() for x in list_skpd_murni if str(x).strip() != ""]
+        list_skpd = ["SEMUA SKPD"] + sorted(list_skpd_murni)
         
         with col_skpd:
             skpd_pilihan = st.selectbox("🏢 Filter SKPD:", options=list_skpd)
@@ -285,10 +281,10 @@ elif menu_pilihan == "Rekap SIPD":
         if st.button("🚀 PROSES & BUAT REKAP", type="primary", use_container_width=True):
             with st.spinner("🧠 Meracik data dengan Sistem Pivot Murni..."):
                 
-                df_proses = df.copy()
+                df_proses = df_tahun.copy() # Gunakan df_tahun agar tahun yang lain tidak ikut terproses
                 
                 # ======================================================================
-                # 1. FILTER DATA BERDASARKAN SKPD PILIHAN (MURNI TANPA TRANSLASI)
+                # 1. FILTER DATA BERDASARKAN SKPD PILIHAN 
                 # ======================================================================
                 if skpd_pilihan != "SEMUA SKPD":
                     df_proses = df_proses[df_proses['nama_skpd'] == skpd_pilihan]
@@ -348,7 +344,7 @@ elif menu_pilihan == "Rekap SIPD":
                 # Level 5 - Sub Kegiatan
                 l5 = df_pivot.copy()
                 l5['Kode'], l5['Uraian'], l5['Level'], l5['Sort_Key'] = l5['kode_sub_kegiatan'], l5['nama_sub_kegiatan'], 5, l5['kode_skpd'] + "|" + l5['kode_urusan'] + "|" + l5['kode_program'] + "|" + l5['kode_kegiatan'] + "|" + l5['kode_sub_kegiatan']
-                l5 = pd.merge(l5, sd_final, on=['kode_skpd', 'kode_urusan', 'kode_program', 'kode_kegiatan', 'kode_sub_kegiatan'], how='left')
+                l5 = pd.merge(l5, sd_final, on=['kode_skpd', 'kode_urusan', 'kode_program', 'kode_kegiatan'], how='left') # Disesuaikan sedikit agar merge lebih aman
                 kumpulan_level.append(l5)
 
                 # ======================================================================
@@ -366,16 +362,14 @@ elif menu_pilihan == "Rekap SIPD":
                 df_web['Sumber Dana (Tahap Akhir)'] = df_web['Sumber Dana (Tahap Akhir)'].fillna("")
 
                 # ======================================================================
-                # 5. TAMPILKAN DI WEB (TABEL POLOS / NORMAL)
+                # 5. TAMPILKAN DI WEB
                 # ======================================================================
                 pesan_sukses = "Semua SKPD" if skpd_pilihan == "SEMUA SKPD" else skpd_pilihan
                 st.success(f"🎉 Rekap untuk {pesan_sukses} Berhasil Dibuat!")
-                
-                # Menampilkan Dataframe tanpa style khusus agar aman dan ringan
                 st.dataframe(df_web, use_container_width=True)
 
                 # ======================================================================
-                # 6. SIAPKAN EXCEL DENGAN PEWARNAAN
+                # 6. DOWNLOAD EXCEL
                 # ======================================================================
                 def highlight_excel(row):
                     idx = row.name
@@ -384,9 +378,8 @@ elif menu_pilihan == "Rekap SIPD":
                     elif lvl == 2: return ['background-color: #FFF2CC; font-weight: bold;'] * len(row)
                     elif lvl == 3: return ['background-color: #FCE4D6; font-weight: bold;'] * len(row)
                     elif lvl == 4: return ['background-color: #E2EFDA; font-weight: bold;'] * len(row)
-                    return [''] * len(row) # Level 5 polos
+                    return [''] * len(row) 
 
-                # Format angka dan warna KHUSUS untuk diekspor ke Excel
                 kolom_angka = list_tahapan + ['Selisih (Akhir - Awal)']
                 styled_excel = df_web.style.apply(highlight_excel, axis=1).format({col: "{:,.0f}" for col in kolom_angka})
 
@@ -404,6 +397,7 @@ elif menu_pilihan == "Rekap SIPD":
                     mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                     type="primary"
                 )
+
 
 
 
