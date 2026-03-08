@@ -267,7 +267,17 @@ elif menu_pilihan == "Rekap SIPD":
         # Saring data khusus untuk tahun yang dipilih
         df_tahun = df[df['tahun'] == tahun_pilihan].copy()
 
-        # 2. AMBIL DAFTAR TAHAPAN & SKPD BERDASARKAN TAHUN PILIHAN
+        # --- KAMUS TRANSLASI OPD (HANYA DI MEMORI, DATABASE AMAN) ---
+        # Formatnya: {"Nama OPD Lama di Tahap Awal" : "Nama OPD Baru di Tahap Akhir"}
+        kamus_opd = {
+            "Dinas Pendidikan dan Kebudayaan": "Dinas Pendidikan",
+            # "Dinas Lama Lainnya": "Dinas Baru Lainnya" <-- Tambahkan di sini jika ada lagi nanti
+        }
+        
+        # Eksekusi penggantian nama (Hanya untuk keperluan rekap ini)
+        df_tahun['nama_skpd'] = df_tahun['nama_skpd'].replace(kamus_opd)
+
+        # 2. AMBIL DAFTAR TAHAPAN & SKPD (Sekarang nama lamanya sudah otomatis hilang dan melebur)
         list_tahapan = df_tahun['tahapan'].unique().tolist()
         list_skpd = ["SEMUA SKPD"] + sorted([str(x) for x in df_tahun['nama_skpd'].dropna().unique().tolist()])
         
@@ -424,6 +434,7 @@ elif menu_pilihan == "Rekap SIPD":
                     mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                     type="primary"
                 )
+
 
 
 
