@@ -220,7 +220,10 @@ elif menu_pilihan == "Rekap SIPD":
         offset = 0
         limit = 1000
         while True:
-            res = supabase.table("rekap_sipd").select("*").range(offset, offset + limit - 1).execute()
+            # RAHASIANYA DI SINI: Tambahkan .order() agar Supabase tidak mengacak data saat dicicil
+            # Jika di tabel Supabase Anda ada kolom 'id', gunakan "id". Jika tidak ada, ganti dengan "kode_skpd"
+            res = supabase.table("rekap_sipd").select("*").order("id").range(offset, offset + limit - 1).execute()
+            
             data_tarikan = res.data
             if not data_tarikan:
                 break
@@ -436,6 +439,7 @@ elif menu_pilihan == "Rekap SIPD":
                     mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                     type="primary"
                 )
+
 
 
 
