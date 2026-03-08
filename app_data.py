@@ -1,12 +1,12 @@
 import streamlit as st
 import openpyxl
 import io
-import re  # <--- Tambahan library untuk Regex (Pembersih Karakter)
+import re
 
 # 1. Judul Halaman Khusus Data
 st.set_page_config(page_title="Olah Data & SIPD", layout="wide")
 
-# 2. Sistem Login (Sama seperti sebelumnya)
+# 2. Sistem Login
 if "authenticated" not in st.session_state:
     st.session_state.authenticated = False
 
@@ -31,22 +31,9 @@ if st.session_state.authenticated:
     st.title("📊 Mamayo Data Center")
     st.write("Pusat Pengolahan Data Excel dan SIPD")
     
-    # ==========================================
-    # ALAT EXCEL (TAMBAH PETIK & BERSIHKAN DATA)
-    # ==========================================
-    st.write("Alat super untuk memanipulasi tanda petik (') dan membersihkan karakter aneh pada data Excel. Sangat ampuh untuk NIK Dapodik, NIP, atau Rekening SIPD.")
-    
-    with st.expander("📖 Buka Panduan Penggunaan", expanded=False):
-        st.markdown("""
-        **Cara Penggunaan:**
-        1. Unggah file Excel (`.xlsx`) Anda.
-        2. Ketik huruf kolom target. **Bisa lebih dari 1 kolom!** Pisahkan dengan koma (Contoh: `C, E, G`).
-        3. Pilih mode Aksi (Tambah/Hapus).
-        4. Centang **Pembersih Karakter Hantu** jika data Anda berasal dari Dapodik/SIPD yang susah dibersihkan.
-        5. Klik Proses!
-        """)
-        
     st.markdown("---")
+    st.write("### 🛠️ Alat Excel: Manipulasi Petik & Pembersih Karakter")
+    st.write("Gunakan alat ini untuk merapikan data Dapodik/SIPD dalam satu kali jalan.")
     
     file_excel = st.file_uploader("📥 Unggah File Excel (.xlsx)", type=["xlsx"], key="excel_upload")
     
@@ -54,65 +41,71 @@ if st.session_state.authenticated:
         col1, col2 = st.columns(2)
         
         with col1:
-            kolom_target = st.text_input("🔠 Ketik Huruf Kolom (Pisahkan dgn koma. Cth: C, F, H):").upper()
-            # Tombol sakti untuk membersihkan data
-            bersihkan_angka = st.checkbox("🧹 Bersihkan Karakter Hantu (Ekstrak Angkanya Saja)", 
-                                          help="Gunakan ini untuk NIK/NIP Dapodik. Semua huruf, spasi tersembunyi, dan simbol akan dihapus permanen, hanya menyisakan angka murni.")
+            st.markdown("#### 1️⃣ Pengaturan Tanda Petik")
+            kolom_petik = st.text_input("🔠 Kolom untuk Tanda Petik (Cth: C, D):", help="Kosongkan jika tidak butuh").upper()
+            mode_excel = st.radio("⚙️ Aksi:", ["+ Tambah Petik Tersembunyi", "- Hapus Semua Petik"], horizontal=True)
             
         with col2:
-            mode_excel = st.radio("⚙️ Pilih Aksi Tanda Petik:", ["+ Tambah Petik Tersembunyi", "- Hapus Semua Petik"], horizontal=True)
+            st.markdown("#### 2️⃣ Pengaturan Pembersih Karakter")
+            kolom_bersih = st.text_input("🧹 Kolom Ekstrak Angka (Cth: F, G):", help="Kosongkan jika tidak butuh. Akan menghapus semua huruf/simbol/spasi, murni sisa angka.").upper()
+            
+        st.info("💡 **Tips:** Anda bisa mengisi kedua kotak di atas sekaligus. Jika ada kolom yang butuh dibersihkan sekaligus diberi petik, ketik hurufnya di kedua kotak.")
             
         if st.button("🚀 PROSES FILE EXCEL", type="primary", use_container_width=True):
-            if not kolom_target:
-                st.error("⚠️ Mohon isi minimal 1 huruf kolom terlebih dahulu!")
+            # Cek apakah minimal ada satu kotak yang diisi
+            if not kolom_petik and not kolom_bersih:
+                st.error("⚠️ Mohon isi minimal salah satu kolom (Petik atau Pembersih)!")
             else:
-                with st.spinner("Memproses ribuan baris data Excel..."):
+                with st.spinner("Memproses data Excel Anda..."):
                     try:
-                        # Pecah teks kolom (Misal "C, F, H" menjadi list ['C', 'F', 'H'])
-                        list_kolom = [k.strip() for k in kolom_target.split(",") if k.strip()]
+                        # Pecah teks input menjadi list
+                        list_petik = [k.strip() for k in kolom_petik.split(",") if k.strip()]
+                        list_bersih = [k.strip() for k in kolom_bersih.split(",") if k.strip()]
                         
                         wb = openpyxl.load_workbook(file_excel)
                         ws = wb.active
                         
-                        # Loop melalui setiap kolom yang diinput user
-                        for col_letter in list_kolom:
-                            for row in range(2, ws.max_row + 1):
-                                cell = ws[f"{col_letter}{row}"]
-                                
-                                if cell.value is not None:
-                                    val_str = str(cell.value).strip()
-                                    
-                                    # --- FITUR PEMBERSIH KARAKTER HANTU (REGEX) ---
-                                    if bersihkan_angka:
-                                        # Hapus semua yang BUKAN angka (\D)
+                        # TAHAP 1: EKSTRAK ANGKA (Pembersih Karakter Hantu)
+                        if list_bersih:
+                            for col in list_bersih:
+                                for row in range(2, ws.max_row + 1):
+                                    cell = ws[f"{col}{row}"]
+                                    if cell.value is not None:
+                                        val_str = str(cell.value).strip()
+                                        # Libas semua yang bukan angka
                                         val_str = re.sub(r'\D', '', val_str)
-                                    
-                                    # --- LOGIKA PETIK ---
-                                    if mode_excel == "+ Tambah Petik Tersembunyi":
-                                        if val_str.startswith("'"):
-                                            val_str = val_str[1:]
                                         cell.value = val_str
-                                        cell.quotePrefix = True
                                         
-                                    else: # Mode Hapus Petik
-                                        val_str = val_str.replace("'", "")
-                                        cell.value = val_str
-                                        cell.quotePrefix = False 
-                                        cell.number_format = '@' 
+                        # TAHAP 2: MANIPULASI TANDA PETIK
+                        if list_petik:
+                            for col in list_petik:
+                                for row in range(2, ws.max_row + 1):
+                                    cell = ws[f"{col}{row}"]
+                                    if cell.value is not None:
+                                        val_str = str(cell.value).strip()
+                                        
+                                        if mode_excel == "+ Tambah Petik Tersembunyi":
+                                            if val_str.startswith("'"):
+                                                val_str = val_str[1:]
+                                            cell.value = val_str
+                                            cell.quotePrefix = True
+                                        else:
+                                            val_str = val_str.replace("'", "")
+                                            cell.value = val_str
+                                            cell.quotePrefix = False 
+                                            cell.number_format = '@'
 
-                        # Simpan hasil
+                        # Simpan dan Siapkan Download
                         output_excel = io.BytesIO()
                         wb.save(output_excel)
                         output_excel.seek(0)
                         
-                        st.success(f"✅ Mantap! Berhasil memproses kolom: {', '.join(list_kolom)}")
-                        
-                        nama_file_baru = f"Selesai_{file_excel.name}"
+                        st.success("✅ File berhasil diproses sesuai pengaturan Anda!")
                         
                         st.download_button(
                             label="📥 Download Hasil Excel",
                             data=output_excel,
-                            file_name=nama_file_baru,
+                            file_name=f"Selesai_{file_excel.name}",
                             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                             type="primary"
                         )
