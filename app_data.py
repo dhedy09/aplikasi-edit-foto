@@ -216,7 +216,6 @@ elif menu_pilihan == "Rekap SIPD":
     # 1. Ambil data dari Supabase
     with st.spinner("Mengambil data dari database..."):
         try:
-            # Mengambil seluruh data (nantinya bisa difilter by Tahun jika data makin besar)
             response = supabase.table("rekap_sipd").select("*").execute()
             data_db = response.data
         except Exception as e:
@@ -228,21 +227,29 @@ elif menu_pilihan == "Rekap SIPD":
     else:
         df = pd.DataFrame(data_db)
         
-        # 2. MESIN TRANSLASI SOTK (Hardcode seperti permintaan)
+        # --- PERBAIKAN: Bersihkan spasi tersembunyi dari data ---
+        df['kode_skpd'] = df['kode_skpd'].astype(str).str.strip()
+        df['nama_skpd'] = df['nama_skpd'].astype(str).str.strip()
+        
+        # 2. MESIN TRANSLASI SOTK
         MAP_SKPD = {
             "1.01.2.22.0.00.16.0000": "1.01.0.00.0.00.16.0000"
         }
         df['kode_skpd'] = df['kode_skpd'].replace(MAP_SKPD)
         
-        # Memastikan nama SKPD seragam untuk kode yang sudah ditranslasi
+        # Seragamkan nama SKPD untuk kode yang sudah ditranslasi
         df.loc[df['kode_skpd'] == "1.01.0.00.0.00.16.0000", 'nama_skpd'] = "Dinas Pendidikan"
         
-        # Filter HANYA untuk Dinas Pendidikan agar proses cepat
-        df = df[df['kode_skpd'] == "1.01.0.00.0.00.16.0000"]
+        # Filter HANYA untuk Dinas Pendidikan
+        df_filter = df[df['kode_skpd'] == "1.01.0.00.0.00.16.0000"]
 
-        if df.empty:
+        if df_filter.empty:
             st.warning("⚠️ Tidak ada data untuk Dinas Pendidikan di database.")
+            # --- FITUR DEBUGGING ---
+            st.info("🔍 DIAGNOSA: Berikut adalah daftar Kode dan Nama SKPD yang sebenarnya ada di database Anda saat ini:")
+            st.dataframe(df[['kode_skpd', 'nama_skpd']].drop_duplicates())
         else:
+            df = df_filter
             # 3. IDENTIFIKASI TAHAPAN
             list_tahapan = df['tahapan'].dropna().unique().tolist()
             
@@ -392,4 +399,5 @@ elif menu_pilihan == "Rekap SIPD":
                         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                         type="primary"
                     )
+
 
