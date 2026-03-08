@@ -316,9 +316,16 @@ elif menu_pilihan == "Rekap SIPD":
                 
                 # LANGKAH B: MERACIK TEKS SUMBER DANA
                 df_sd = df_proses[df_proses['tahapan'] == tahapan_acuan].copy()
+                
+                # 1. Bersihkan "spasi siluman" di awal dan akhir nama sumber dana bawaan SIPD
+                df_sd['nama_sumber_dana'] = df_sd['nama_sumber_dana'].astype(str).str.strip()
+                
                 sd_grouped = df_sd.groupby(['kode_skpd', 'kode_urusan', 'kode_program', 'kode_kegiatan', 'kode_sub_kegiatan', 'nama_sumber_dana'])['pagu'].sum().reset_index()
                 sd_grouped['teks_sd'] = sd_grouped.apply(lambda row: f"{row['nama_sumber_dana']} = {row['pagu']:,.0f}", axis=1)
-                sd_final = sd_grouped.groupby(['kode_skpd', 'kode_urusan', 'kode_program', 'kode_kegiatan', 'kode_sub_kegiatan'])['teks_sd'].apply(lambda x: ' \n '.join(x)).reset_index()
+                
+                # 2. PERBAIKAN: Gabungkan dengan '\n' murni TANPA spasi di kiri/kanannya
+                sd_final = sd_grouped.groupby(['kode_skpd', 'kode_urusan', 'kode_program', 'kode_kegiatan', 'kode_sub_kegiatan'])['teks_sd'].apply(lambda x: '\n'.join(x)).reset_index()
+                
                 sd_final.rename(columns={'teks_sd': 'Sumber Dana'}, inplace=True)
 
                 # LANGKAH C: MEMBUAT HIERARKI BERJENJANG (SKPD -> Sub Kegiatan)
@@ -427,6 +434,7 @@ elif menu_pilihan == "Rekap SIPD":
                     mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                     type="primary"
                 )
+
 
 
 
