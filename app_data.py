@@ -267,25 +267,18 @@ elif menu_pilihan == "Rekap SIPD":
         # Saring data khusus untuk tahun yang dipilih
         df_tahun = df[df['tahun'] == tahun_pilihan].copy()
 
-        # --- KAMUS TRANSISI SOTK (KHUSUS AKTIF DI TAHUN 2026) ---
-        # Pastikan tahun_pilihan disesuaikan dengan tipe datanya (bisa angka atau teks)
+        # --- PENYATUAN SOTK KHUSUS 2026 (AGAR TIDAK DOUBLE) ---
         if str(tahun_pilihan) == "2026":
-            # 1. Kamus Nama OPD (Ganti nama lama ke nama baru)
-            kamus_nama = {
-                "Dinas Pendidikan dan Kebudayaan": "Dinas Pendidikan"
-                # Jika ada dinas lain yang ganti nama di 2026, tambahkan di sini
-            }
-            # 2. Kamus Kode OPD (GANTI "KODE_LAMA" DAN "KODE_BARU" DENGAN ANGKA ASLINYA!)
-            kamus_kode = {
-                "KODE_LAMA_DISDIKBUD_DI_TAHAP_1": "KODE_BARU_DISDIK_DI_TAHAP_2"
-            }
+            # 1. Samakan Namanya (Pakai 'contains' agar kebal terhadap spasi siluman/typo di data asli)
+            df_tahun.loc[df_tahun['nama_skpd'].str.contains("Pendidikan dan Kebudayaan", case=False, na=False), 'nama_skpd'] = "Dinas Pendidikan"
             
-            # Terapkan perubahan hanya untuk tahun 2026
-            df_tahun['nama_skpd'] = df_tahun['nama_skpd'].replace(kamus_nama)
-            df_tahun['kode_skpd'] = df_tahun['kode_skpd'].replace(kamus_kode)
+            # 2. Samakan Kodenya (INI KUNCI AGAR TIDAK JADI 2 BARIS)
+            # Kita paksa semua baris yang bernama "Dinas Pendidikan" memakai SATU kode yang sama.
+            # GANTI teks "KODE_BARU_DISDIK" di bawah dengan angka kode SKPD Dinas Pendidikan di Tahapan Baru (Tahap 2)!
+            df_tahun.loc[df_tahun['nama_skpd'] == "Dinas Pendidikan", 'kode_skpd'] = "KODE_BARU_DISDIK"
 
 
-        # 2. AMBIL DAFTAR TAHAPAN & SKPD 
+        # 2. AMBIL DAFTAR TAHAPAN & SKPD (Sekarang sudah melebur jadi satu)
         list_tahapan = df_tahun['tahapan'].unique().tolist()
         list_skpd = ["SEMUA SKPD"] + sorted([str(x) for x in df_tahun['nama_skpd'].dropna().unique().tolist()])
         
@@ -434,6 +427,7 @@ elif menu_pilihan == "Rekap SIPD":
                     mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                     type="primary"
                 )
+
 
 
 
