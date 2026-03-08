@@ -206,225 +206,190 @@ elif menu_pilihan == "Import SIPD":
     elif file_sipd and not nama_tahapan:
         st.warning("⚠️ Silakan isi kotak **Nama Tahapan** terlebih dahulu untuk memunculkan tombol upload.")
 
-# --- MODUL 3: REKAP SIPD ---
+# -------------------------------------------------------------------------
+# --- MODUL 3: REKAP SIPD (HIERARKI & PERBANDINGAN TAHAPAN) ---
+# -------------------------------------------------------------------------
 elif menu_pilihan == "Rekap SIPD":
-    st.title("📊 Sistem Rekapitulasi SIPD Terpadu")
-    st.write("Laporan Perbandingan Pagu dengan Sistem Anti-Dobel dan Filter Subtotal.")
+    st.title("📊 Rekapitulasi Perbandingan Tahapan")
+    st.write("Tabel rekapitulasi hierarki anggaran dengan perbandingan antar tahapan.")
     
-    @st.cache_data(ttl=3600, show_spinner=False)
-    def tarik_data_database():
-        semua_data = []
-        offset = 0
-        limit = 1000
-        while True:
-            res = supabase.table("rekap_sipd").select("*").range(offset, offset + limit - 1).execute()
-            data_tarikan = res.data
-            if not data_tarikan:
-                break
-            semua_data.extend(data_tarikan)
-            if len(data_tarikan) < limit:
-                break
-            offset += limit
-        return pd.DataFrame(semua_data)
-
-    with st.spinner("⏳ Menyiapkan data..."):
+    # 1. Ambil data dari Supabase
+    with st.spinner("Mengambil data dari database..."):
         try:
-            df = tarik_data_database()
+            # Mengambil seluruh data (nantinya bisa difilter by Tahun jika data makin besar)
+            response = supabase.table("rekap_sipd").select("*").execute()
+            data_db = response.data
         except Exception as e:
-            st.error(f"❌ Gagal menarik data dari database: {e}")
-            df = pd.DataFrame() 
-
-    if st.button("🔄 Refresh Data Database"):
-        tarik_data_database.clear()
-        st.rerun()
-
-    if df.empty:
-        st.info("💡 Database masih kosong. Silakan Import SIPD terlebih dahulu.")
-    else:
-        st.success(f"✅ Berhasil memuat {len(df)} baris data!")
-        df['pagu'] = pd.to_numeric(df['pagu'], errors='coerce').fillna(0)
-        
-        if 'tahun' not in df.columns:
-            st.error("⚠️ Sistem mendeteksi kolom 'tahun' tidak ada di database.")
+            st.error(f"❌ Gagal mengambil data: {e}")
             st.stop()
 
-        st.markdown("### ⚙️ Pengaturan Filter & Rekap")
+    if not data_db:
+        st.warning("⚠️ Database masih kosong. Silakan import data terlebih dahulu di menu Import SIPD.")
+    else:
+        df = pd.DataFrame(data_db)
         
-        # 1. FILTER TAHUN
-        list_tahun = sorted(df['tahun'].dropna().unique().tolist(), reverse=True)
-        tahun_pilihan = st.selectbox("📅 Pilih Tahun Anggaran:", options=list_tahun)
-        df_tahun = df[df['tahun'] == tahun_pilihan].copy()
+        # 2. MESIN TRANSLASI SOTK (Hardcode seperti permintaan)
+        MAP_SKPD = {
+            "1.01.2.22.0.00.16.0000": "1.01.0.00.0.00.16.0000"
+        }
+        df['kode_skpd'] = df['kode_skpd'].replace(MAP_SKPD)
+        
+        # Memastikan nama SKPD seragam untuk kode yang sudah ditranslasi
+        df.loc[df['kode_skpd'] == "1.01.0.00.0.00.16.0000", 'nama_skpd'] = "Dinas Pendidikan"
+        
+        # Filter HANYA untuk Dinas Pendidikan agar proses cepat
+        df = df[df['kode_skpd'] == "1.01.0.00.0.00.16.0000"]
 
-        list_tahapan_tahun = df_tahun['tahapan'].unique().tolist()
-        
-        col_skpd, col_tahapan = st.columns(2)
-        
-        # 2. FILTER SKPD
-        list_skpd_murni = df_tahun['nama_skpd'].dropna().unique().tolist()
-        list_skpd_murni = [str(x).strip() for x in list_skpd_murni if str(x).strip() != ""]
-        list_skpd = ["SEMUA SKPD"] + sorted(list_skpd_murni)
-        
-        with col_skpd:
-            skpd_pilihan = st.selectbox("🏢 Filter SKPD:", options=list_skpd)
-
-        if skpd_pilihan != "SEMUA SKPD":
-            df_skpd_valid = df_tahun[df_tahun['nama_skpd'] == skpd_pilihan].copy()
+        if df.empty:
+            st.warning("⚠️ Tidak ada data untuk Dinas Pendidikan di database.")
         else:
-            df_skpd_valid = df_tahun.copy()
+            # 3. IDENTIFIKASI TAHAPAN
+            list_tahapan = df['tahapan'].dropna().unique().tolist()
+            
+            col1, col2 = st.columns(2)
+            with col1:
+                # Pilihan Tahapan Acuan untuk Sumber Dana
+                tahapan_acuan = st.selectbox("🎯 Pilih Tahapan Acuan untuk Sumber Dana:", list_tahapan, index=len(list_tahapan)-1)
+            with col2:
+                # Pilihan Tahapan Awal dan Akhir untuk menghitung Selisih
+                tahap_awal = st.selectbox("📉 Tahapan Awal (Untuk Selisih):", list_tahapan, index=0)
+                tahap_akhir = st.selectbox("📈 Tahapan Akhir (Untuk Selisih):", list_tahapan, index=len(list_tahapan)-1)
 
-        # 3. FILTER TAHAPAN ACUAN
-        list_tahapan_skpd = df_skpd_valid['tahapan'].unique().tolist()
-        with col_tahapan:
-            tahapan_acuan = st.selectbox("📍 Acuan Nama & Sumber Dana:", options=list_tahapan_skpd)
+            if st.button("🔄 Buat Rekap", type="primary"):
+                with st.spinner("Menyusun hierarki dan kalkulasi pagu..."):
+                    # 4. MEMBANGUN MEMORI KALKULASI (Meniru logika Dictionary VBA Anda)
+                    dict_pagu = defaultdict(float)
+                    dict_nama = {}
+                    dict_sd = defaultdict(lambda: defaultdict(float)) # Format: dict_sd[kode_sub][sumber_dana] = nilai
 
-        if st.button("🚀 PROSES & BUAT REKAP", type="primary", use_container_width=True):
-            with st.spinner("🧠 Membersihkan data ganda & menghitung ulang pagu..."):
-                
-                df_proses = df_skpd_valid.copy()
-                if df_proses.empty:
-                    st.warning(f"⚠️ Tidak ada data untuk {skpd_pilihan}.")
-                    st.stop()
+                    # Struktur Hierarki (Tree)
+                    tree_skpd = set()
+                    tree_urusan = defaultdict(set)
+                    tree_prog = defaultdict(set)
+                    tree_keg = defaultdict(set)
+                    tree_sub = defaultdict(set)
 
-                # ======================================================================
-                # 🛡️ PERTAHANAN 1: HAPUS DATA GANDA (AKIBAT DOUBLE IMPORT)
-                # ======================================================================
-                df_proses = df_proses.drop_duplicates(subset=[
-                    'kode_skpd', 'kode_sub_kegiatan', 'nama_sumber_dana', 'tahapan', 'pagu'
-                ])
+                    for _, row in df.iterrows():
+                        k_skpd, n_skpd = str(row['kode_skpd']), str(row['nama_skpd'])
+                        k_urus, n_urus = str(row['kode_urusan']), str(row['nama_urusan'])
+                        k_prog, n_prog = str(row['kode_program']), str(row['nama_program'])
+                        k_keg, n_keg = str(row['kode_kegiatan']), str(row['nama_kegiatan'])
+                        k_sub, n_sub = str(row['kode_sub_kegiatan']), str(row['nama_sub_kegiatan'])
+                        sd = str(row['nama_sumber_dana'])
+                        pagu = float(row['pagu'] or 0)
+                        thp = str(row['tahapan'])
 
-                # Bersihkan Teks
-                kolom_teks = ['kode_skpd', 'nama_skpd', 'kode_urusan', 'nama_urusan', 'kode_program', 'nama_program', 
-                              'kode_kegiatan', 'nama_kegiatan', 'kode_sub_kegiatan', 'nama_sub_kegiatan', 'nama_sumber_dana']
-                for col in kolom_teks:
-                    if col in df_proses.columns:
-                        df_proses[col] = df_proses[col].fillna("").astype(str).str.strip()
+                        # Simpan Nama Uraian
+                        dict_nama[k_skpd] = n_skpd
+                        dict_nama[k_urus] = n_urus
+                        dict_nama[k_prog] = n_prog
+                        dict_nama[k_keg] = n_keg
+                        dict_nama[k_sub] = n_sub
 
-                # ======================================================================
-                # 🛡️ PERTAHANAN 2: BUANG BARIS SUBTOTAL DARI EXCEL
-                # Kita HANYA menjumlahkan data yang memiliki Kode Sub Kegiatan!
-                # ======================================================================
-                df_proses = df_proses[df_proses['kode_sub_kegiatan'] != ""]
-                df_proses = df_proses[df_proses['kode_sub_kegiatan'] != "None"]
-                df_proses = df_proses[df_proses['kode_sub_kegiatan'] != "nan"]
+                        # Bangun Pohon Hierarki
+                        tree_skpd.add(k_skpd)
+                        tree_urusan[k_skpd].add(k_urus)
+                        tree_prog[k_urus].add(k_prog)
+                        tree_keg[k_prog].add(k_keg)
+                        tree_sub[k_keg].add(k_sub)
 
-                # ======================================================================
-                # 1. KAMUS NAMA (VLOOKUP)
-                # ======================================================================
-                dict_skpd = df_proses.drop_duplicates('kode_skpd', keep='last').set_index('kode_skpd')['nama_skpd'].to_dict()
-                dict_urusan = df_proses.drop_duplicates('kode_urusan', keep='last').set_index('kode_urusan')['nama_urusan'].to_dict()
-                dict_prog = df_proses.drop_duplicates('kode_program', keep='last').set_index('kode_program')['nama_program'].to_dict()
-                dict_keg = df_proses.drop_duplicates('kode_kegiatan', keep='last').set_index('kode_kegiatan')['nama_kegiatan'].to_dict()
-                dict_subkeg = df_proses.drop_duplicates('kode_sub_kegiatan', keep='last').set_index('kode_sub_kegiatan')['nama_sub_kegiatan'].to_dict()
+                        # Kalkulasi Pagu per Tahapan
+                        dict_pagu[f"{k_skpd}|{thp}"] += pagu
+                        dict_pagu[f"{k_urus}|{thp}"] += pagu
+                        dict_pagu[f"{k_prog}|{thp}"] += pagu
+                        dict_pagu[f"{k_keg}|{thp}"] += pagu
+                        dict_pagu[f"{k_sub}|{thp}"] += pagu
 
-                # ======================================================================
-                # 2. PIVOT LEVEL BAWAH MURNI KODE
-                # ======================================================================
-                df_pivot = df_proses.pivot_table(
-                    index=['kode_skpd', 'kode_urusan', 'kode_program', 'kode_kegiatan', 'kode_sub_kegiatan'],
-                    columns='tahapan', values='pagu', aggfunc='sum'
-                ).reset_index().fillna(0)
+                        # Kalkulasi Sumber Dana KHUSUS untuk Tahapan Acuan
+                        if thp == tahapan_acuan:
+                            dict_sd[k_sub][sd] += pagu
 
-                for t in list_tahapan_tahun:
-                    if t not in df_pivot.columns:
-                        df_pivot[t] = 0
+                    # 5. MENYUSUN BARIS DATA (FLAT TABLE)
+                    baris_rekap = []
 
-                # ======================================================================
-                # 3. TARIK SUMBER DANA ACUAN
-                # ======================================================================
-                df_sd = df_proses[df_proses['tahapan'] == tahapan_acuan].copy()
-                if not df_sd.empty:
-                    sd_grouped = df_sd.groupby(['kode_skpd', 'kode_sub_kegiatan', 'nama_sumber_dana'])['pagu'].sum().reset_index()
-                    sd_grouped = sd_grouped[sd_grouped['pagu'] > 0]
-                    sd_grouped['teks_sd'] = sd_grouped['nama_sumber_dana'] + " = " + sd_grouped['pagu'].apply(lambda x: f"{x:,.0f}")
-                    sd_final = sd_grouped.groupby(['kode_skpd', 'kode_sub_kegiatan'])['teks_sd'].apply(lambda x: ' \n '.join(x)).reset_index()
-                    sd_final.rename(columns={'teks_sd': 'Sumber Dana (Acuan)'}, inplace=True)
-                else:
-                    sd_final = pd.DataFrame(columns=['kode_skpd', 'kode_sub_kegiatan', 'Sumber Dana (Acuan)'])
+                    def format_rupiah(angka):
+                        return f"Rp. {int(angka):,} \n".replace(',', '.')
 
-                # ======================================================================
-                # 4. BANGUN HIERARKI (1 - 5)
-                # ======================================================================
-                kumpulan_level = []
-                
-                # Level 1 - SKPD
-                l1 = df_pivot.groupby(['kode_skpd'])[list_tahapan_tahun].sum().reset_index()
-                l1['Level'], l1['Sort_Key'] = 1, l1['kode_skpd']
-                l1['Kode'], l1['Uraian'] = l1['kode_skpd'], l1['kode_skpd'].map(dict_skpd)
-                kumpulan_level.append(l1)
+                    for sk_key in sorted(tree_skpd):
+                        # --- Level SKPD ---
+                        row_data = {"Kode": sk_key, "Uraian": dict_nama[sk_key], "Sumber Dana": "", "Level": "SKPD"}
+                        for thp in list_tahapan:
+                            row_data[f"Pagu {thp}"] = dict_pagu[f"{sk_key}|{thp}"]
+                        row_data["Selisih"] = dict_pagu[f"{sk_key}|{tahap_akhir}"] - dict_pagu[f"{sk_key}|{tahap_awal}"]
+                        baris_rekap.append(row_data)
 
-                # Level 2 - Urusan
-                l2 = df_pivot.groupby(['kode_skpd', 'kode_urusan'])[list_tahapan_tahun].sum().reset_index()
-                l2['Level'], l2['Sort_Key'] = 2, l2['kode_skpd'] + "|" + l2['kode_urusan']
-                l2['Kode'], l2['Uraian'] = l2['kode_urusan'], l2['kode_urusan'].map(dict_urusan)
-                kumpulan_level.append(l2)
+                        for u_key in sorted(tree_urusan[sk_key]):
+                            # --- Level Urusan ---
+                            row_data = {"Kode": u_key, "Uraian": dict_nama[u_key], "Sumber Dana": "", "Level": "Urusan"}
+                            for thp in list_tahapan:
+                                row_data[f"Pagu {thp}"] = dict_pagu[f"{u_key}|{thp}"]
+                            row_data["Selisih"] = dict_pagu[f"{u_key}|{tahap_akhir}"] - dict_pagu[f"{u_key}|{tahap_awal}"]
+                            baris_rekap.append(row_data)
 
-                # Level 3 - Program
-                l3 = df_pivot.groupby(['kode_skpd', 'kode_urusan', 'kode_program'])[list_tahapan_tahun].sum().reset_index()
-                l3['Level'], l3['Sort_Key'] = 3, l3['kode_skpd'] + "|" + l3['kode_urusan'] + "|" + l3['kode_program']
-                l3['Kode'], l3['Uraian'] = l3['kode_program'], l3['kode_program'].map(dict_prog)
-                kumpulan_level.append(l3)
+                            for p_key in sorted(tree_prog[u_key]):
+                                # --- Level Program ---
+                                row_data = {"Kode": p_key, "Uraian": dict_nama[p_key], "Sumber Dana": "", "Level": "Program"}
+                                for thp in list_tahapan:
+                                    row_data[f"Pagu {thp}"] = dict_pagu[f"{p_key}|{thp}"]
+                                row_data["Selisih"] = dict_pagu[f"{p_key}|{tahap_akhir}"] - dict_pagu[f"{p_key}|{tahap_awal}"]
+                                baris_rekap.append(row_data)
 
-                # Level 4 - Kegiatan
-                l4 = df_pivot.groupby(['kode_skpd', 'kode_urusan', 'kode_program', 'kode_kegiatan'])[list_tahapan_tahun].sum().reset_index()
-                l4['Level'], l4['Sort_Key'] = 4, l4['kode_skpd'] + "|" + l4['kode_urusan'] + "|" + l4['kode_program'] + "|" + l4['kode_kegiatan']
-                l4['Kode'], l4['Uraian'] = l4['kode_kegiatan'], l4['kode_kegiatan'].map(dict_keg)
-                kumpulan_level.append(l4)
+                                for k_key in sorted(tree_keg[p_key]):
+                                    # --- Level Kegiatan ---
+                                    row_data = {"Kode": k_key, "Uraian": dict_nama[k_key], "Sumber Dana": "", "Level": "Kegiatan"}
+                                    for thp in list_tahapan:
+                                        row_data[f"Pagu {thp}"] = dict_pagu[f"{k_key}|{thp}"]
+                                    row_data["Selisih"] = dict_pagu[f"{k_key}|{tahap_akhir}"] - dict_pagu[f"{k_key}|{tahap_awal}"]
+                                    baris_rekap.append(row_data)
 
-                # Level 5 - Sub Kegiatan
-                l5 = df_pivot.copy()
-                l5['Level'], l5['Sort_Key'] = 5, l5['kode_skpd'] + "|" + l5['kode_urusan'] + "|" + l5['kode_program'] + "|" + l5['kode_kegiatan'] + "|" + l5['kode_sub_kegiatan']
-                l5['Kode'], l5['Uraian'] = l5['kode_sub_kegiatan'], l5['kode_sub_kegiatan'].map(dict_subkeg)
-                l5 = pd.merge(l5, sd_final, on=['kode_skpd', 'kode_sub_kegiatan'], how='left') 
-                kumpulan_level.append(l5)
+                                    for s_key in sorted(tree_sub[k_key]):
+                                        # --- Level Sub Kegiatan ---
+                                        # Susun String Sumber Dana
+                                        str_sd = ""
+                                        for sd_name, sd_val in dict_sd[s_key].items():
+                                            if sd_val > 0:
+                                                str_sd += f"{sd_name} = {format_rupiah(sd_val)}"
+                                        str_sd = str_sd.strip()
 
-                # ======================================================================
-                # 5. SATUKAN, HITUNG SELISIH & RENDER
-                # ======================================================================
-                df_rekap = pd.concat(kumpulan_level, ignore_index=True).sort_values('Sort_Key').reset_index(drop=True)
-                
-                if len(list_tahapan_tahun) >= 2:
-                    col_awal = list_tahapan_tahun[0]
-                    col_akhir = list_tahapan_tahun[-1]
-                    df_rekap['Selisih (Akhir - Awal)'] = df_rekap[col_akhir] - df_rekap[col_awal]
-                else:
-                    df_rekap['Selisih (Akhir - Awal)'] = 0
+                                        row_data = {"Kode": s_key, "Uraian": dict_nama[s_key], "Sumber Dana": str_sd, "Level": "SubKegiatan"}
+                                        for thp in list_tahapan:
+                                            row_data[f"Pagu {thp}"] = dict_pagu[f"{s_key}|{thp}"]
+                                        row_data["Selisih"] = dict_pagu[f"{s_key}|{tahap_akhir}"] - dict_pagu[f"{s_key}|{tahap_awal}"]
+                                        baris_rekap.append(row_data)
 
-                if 'Sumber Dana (Acuan)' not in df_rekap.columns:
-                    df_rekap['Sumber Dana (Acuan)'] = ""
+                    # 6. RENDER KE DATAFRAME DAN STYLING TAMPILAN
+                    df_hasil = pd.DataFrame(baris_rekap)
+                    
+                    # Fungsi untuk mewarnai baris layaknya Excel
+                    def warna_baris(row):
+                        if row['Level'] == 'SKPD': return ['background-color: #ddebf7; font-weight: bold'] * len(row)
+                        if row['Level'] == 'Urusan': return ['background-color: #fff2cc; font-weight: bold'] * len(row)
+                        if row['Level'] == 'Program': return ['background-color: #fce4d6; font-weight: bold'] * len(row)
+                        if row['Level'] == 'Kegiatan': return ['background-color: #e2efda; font-weight: bold'] * len(row)
+                        return ['background-color: white'] * len(row)
 
-                kolom_final = ['Kode', 'Uraian', 'Sumber Dana (Acuan)'] + list_tahapan_tahun + ['Selisih (Akhir - Awal)']
-                df_web = df_rekap[kolom_final].copy()
-                df_web['Sumber Dana (Acuan)'] = df_web['Sumber Dana (Acuan)'].fillna("")
-                df_web['Uraian'] = df_web['Uraian'].fillna("-")
+                    # Tampilkan di layar (tanpa kolom 'Level' bantuan)
+                    df_tampil = df_hasil.drop(columns=['Level'])
+                    
+                    # Format angka ke Rupiah
+                    format_dict = {col: "{:,.0f}" for col in df_tampil.columns if "Pagu" in col or "Selisih" in col}
+                    
+                    styled_df = df_tampil.style.apply(warna_baris, axis=1).format(format_dict).set_properties(subset=['Sumber Dana'], **{'white-space': 'pre-wrap'})
+                    
+                    st.success("✅ Rekapitulasi berhasil disusun!")
+                    st.dataframe(styled_df, use_container_width=True, height=600)
 
-                pesan_sukses = "Semua SKPD" if skpd_pilihan == "SEMUA SKPD" else skpd_pilihan
-                st.success(f"🎉 Rekap Akurat untuk {pesan_sukses} Berhasil Dibuat!")
-                st.dataframe(df_web, use_container_width=True)
-
-                # EXPORT EXCEL
-                def highlight_excel(row):
-                    idx = row.name
-                    lvl = df_rekap.loc[idx, 'Level']
-                    if lvl == 1:   return ['background-color: #DDEBF7; font-weight: bold;'] * len(row)
-                    elif lvl == 2: return ['background-color: #FFF2CC; font-weight: bold;'] * len(row)
-                    elif lvl == 3: return ['background-color: #FCE4D6; font-weight: bold;'] * len(row)
-                    elif lvl == 4: return ['background-color: #E2EFDA; font-weight: bold;'] * len(row)
-                    return [''] * len(row) 
-
-                kolom_angka = list_tahapan_tahun + ['Selisih (Akhir - Awal)']
-                styled_excel = df_web.style.apply(highlight_excel, axis=1).format({col: "{:,.0f}" for col in kolom_angka})
-
-                output_excel = io.BytesIO()
-                styled_excel.to_excel(output_excel, index=False, engine='openpyxl')
-                output_excel.seek(0)
-                
-                nama_file_skpd = "SEMUA_SKPD" if skpd_pilihan == "SEMUA SKPD" else skpd_pilihan.replace(" ", "_").replace("/", "_")
-                
-                st.download_button(
-                    label="📥 Download Excel Rekap (Format Warna)",
-                    data=output_excel,
-                    file_name=f"Rekap_{nama_file_skpd}_{tahapan_acuan.replace(' ', '_')}.xlsx",
-                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                    type="primary"
-                )
+                    # 7. FITUR EXPORT KE EXCEL
+                    output_excel = io.BytesIO()
+                    with pd.ExcelWriter(output_excel, engine='openpyxl') as writer:
+                        df_tampil.to_excel(writer, index=False, sheet_name='Rekap_SubKeg')
+                    output_excel.seek(0)
+                    
+                    st.download_button(
+                        label="📥 Download Hasil Rekap (Excel)",
+                        data=output_excel,
+                        file_name=f"Rekap_SIPD_{datetime.now().strftime('%Y%m%d')}.xlsx",
+                        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                        type="primary"
+                    )
 
