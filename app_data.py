@@ -2,10 +2,11 @@ import streamlit as st
 import openpyxl
 import io
 import re
-from datetime import datetime # <--- Tambahan library untuk memanggil waktu
+from datetime import datetime
+import pandas as pd # <--- Library andalan untuk mengolah jutaan baris data
 
-# 1. Judul Halaman Khusus Data
-st.set_page_config(page_title="Olah Data & SIPD", layout="wide")
+# 1. Judul Halaman
+st.set_page_config(page_title="Olah Data & SIPD", layout="wide", page_icon="📊")
 
 # 2. Sistem Login
 if "authenticated" not in st.session_state:
@@ -27,54 +28,52 @@ if not st.session_state.authenticated:
                 st.error("❌ Kata sandi salah!")
     st.stop()
 
-# 3. KONTEN APLIKASI UTAMA
-if st.session_state.authenticated:
-    st.title("📊 Mamayo Data Center")
-    st.write("Pusat Pengolahan Data Excel dan SIPD")
-    
+# ==========================================
+# 3. MENU NAVIGASI (SIDEBAR)
+# ==========================================
+with st.sidebar:
+    st.title("⚙️ Main Menu")
+    menu_pilihan = st.radio(
+        "Pilih Modul Aplikasi:",
+        ["🧰 Alat Excel (Petik & Bersih)", "📥 1. Import Data SIPD", "📊 2. Rekap SIPD (Coming Soon)"]
+    )
     st.markdown("---")
-    st.write("### 🛠️ Alat Excel: Manipulasi Petik & Pembersih Karakter")
+    st.caption("Dikembangkan dengan Python & Streamlit")
+
+# ==========================================
+# MODUL 1: ALAT EXCEL (YANG SUDAH KITA BUAT)
+# ==========================================
+if menu_pilihan == "🧰 Alat Excel (Petik & Bersih)":
+    st.title("🛠️ Manipulasi Petik & Pembersih Karakter")
     st.write("Gunakan alat ini untuk merapikan data Dapodik/SIPD dalam satu kali jalan.")
     
-    # ==========================================
-    # PANDUAN PENGGUNAAN
-    # ==========================================
-    with st.expander("📖 Buka Panduan Penggunaan (Cara Isi Kolom)", expanded=False):
+    with st.expander("📖 Buka Panduan Penggunaan", expanded=False):
         st.markdown("""
         **Cara Menggunakan Alat Ini:**
-        Anda bisa memproses banyak kolom sekaligus. Pisahkan huruf kolom dengan koma (Contoh: `C, D, F`).
-        
-        * **Skenario 1: Hanya Tambah/Hapus Petik (Aman untuk Kode Rekening)**
-            * Ketik huruf kolom di kotak **Pengaturan Tanda Petik**.
-            * Biarkan kotak Pembersih Karakter **KOSONG**. (Titik dan strip pada kode rekening tidak akan hilang).
-            
-        * **Skenario 2: Hanya Bersihkan Karakter Hantu (Ekstrak murni angka untuk NIK/NIP)**
-            * Ketik huruf kolom di kotak **Pengaturan Pembersih Karakter**.
-            * Biarkan kotak Tanda Petik **KOSONG**. (Semua huruf, spasi, dan simbol gaib akan lenyap).
-            
-        * **Skenario 3: Bersihkan Karakter SEKALIGUS Tambah Petik**
-            * Ketik huruf kolom yang sama di **KEDUA KOTAK** tersebut. Sistem akan memeras murni angkanya terlebih dahulu, lalu menyuntikkan tanda petik di depannya.
+        Pisahkan huruf kolom dengan koma (Contoh: `C, D, F`).
+        * **Skenario 1:** Hanya Petik -> Isi kotak Petik, kosongkan kotak Pembersih.
+        * **Skenario 2:** Hanya Ekstrak Angka -> Isi kotak Pembersih, kosongkan kotak Petik.
+        * **Skenario 3:** Kombinasi -> Isi huruf kolom yang sama di kedua kotak.
         """)
     
     file_excel = st.file_uploader("📥 Unggah File Excel (.xlsx)", type=["xlsx"], key="excel_upload")
     
     if file_excel:
         col1, col2 = st.columns(2)
-        
         with col1:
             st.markdown("#### 1️⃣ Pengaturan Tanda Petik")
-            kolom_petik = st.text_input("🔠 Kolom untuk Tanda Petik (Cth: C, D):", help="Kosongkan jika tidak butuh").upper()
+            kolom_petik = st.text_input("🔠 Kolom Petik (Cth: C, D):").upper()
             mode_excel = st.radio("⚙️ Aksi:", ["+ Tambah Petik Tersembunyi", "- Hapus Semua Petik"], horizontal=True)
             
         with col2:
             st.markdown("#### 2️⃣ Pengaturan Pembersih Karakter")
-            kolom_bersih = st.text_input("🧹 Kolom Ekstrak Angka (Cth: F, G):", help="Kosongkan jika tidak butuh. Akan menghapus semua huruf/simbol/spasi, murni sisa angka.").upper()
+            kolom_bersih = st.text_input("🧹 Kolom Ekstrak Angka (Cth: F, G):").upper()
             
         if st.button("🚀 PROSES FILE EXCEL", type="primary", use_container_width=True):
             if not kolom_petik and not kolom_bersih:
-                st.error("⚠️ Mohon isi minimal salah satu kolom (Petik atau Pembersih)!")
+                st.error("⚠️ Mohon isi minimal salah satu kolom!")
             else:
-                with st.spinner("Memproses data Excel Anda..."):
+                with st.spinner("Memproses data..."):
                     try:
                         list_petik = [k.strip() for k in kolom_petik.split(",") if k.strip()]
                         list_bersih = [k.strip() for k in kolom_bersih.split(",") if k.strip()]
@@ -82,52 +81,97 @@ if st.session_state.authenticated:
                         wb = openpyxl.load_workbook(file_excel)
                         ws = wb.active
                         
-                        # TAHAP 1: EKSTRAK ANGKA
                         if list_bersih:
                             for col in list_bersih:
                                 for row in range(2, ws.max_row + 1):
                                     cell = ws[f"{col}{row}"]
                                     if cell.value is not None:
-                                        val_str = str(cell.value).strip()
-                                        val_str = re.sub(r'\D', '', val_str)
+                                        val_str = re.sub(r'\D', '', str(cell.value).strip())
                                         cell.value = val_str
                                         
-                        # TAHAP 2: MANIPULASI PETIK
                         if list_petik:
                             for col in list_petik:
                                 for row in range(2, ws.max_row + 1):
                                     cell = ws[f"{col}{row}"]
                                     if cell.value is not None:
                                         val_str = str(cell.value).strip()
-                                        
                                         if mode_excel == "+ Tambah Petik Tersembunyi":
-                                            if val_str.startswith("'"):
-                                                val_str = val_str[1:]
+                                            val_str = val_str[1:] if val_str.startswith("'") else val_str
                                             cell.value = val_str
                                             cell.quotePrefix = True
                                         else:
-                                            val_str = val_str.replace("'", "")
-                                            cell.value = val_str
+                                            cell.value = val_str.replace("'", "")
                                             cell.quotePrefix = False 
                                             cell.number_format = '@'
 
                         output_excel = io.BytesIO()
                         wb.save(output_excel)
                         output_excel.seek(0)
-                        
-                        st.success("✅ File berhasil diproses sesuai pengaturan Anda!")
-                        
-                        # --- PENARIKAN WAKTU UNTUK NAMA FILE ---
-                        waktu_sekarang = datetime.now().strftime("%Y%m%d_%H%M%S")
-                        nama_file_baru = f"Selesai_{waktu_sekarang}_{file_excel.name}"
+                        st.success("✅ File berhasil diproses!")
                         
                         st.download_button(
                             label="📥 Download Hasil Excel",
                             data=output_excel,
-                            file_name=nama_file_baru,
+                            file_name=f"Selesai_{datetime.now().strftime('%Y%m%d_%H%M%S')}_{file_excel.name}",
                             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                             type="primary"
                         )
-                        
                     except Exception as e:
                         st.error(f"❌ Terjadi kesalahan: {e}")
+
+# ==========================================
+# MODUL 2: IMPORT DATA SIPD (TAHAP 1)
+# ==========================================
+elif menu_pilihan == "📥 1. Import Data SIPD":
+    st.title("📥 Import & Pelabelan Data SIPD")
+    st.write("Unggah data mentah tarikan SIPD Anda di sini untuk diseragamkan dan diberi label Tahapan sebelum masuk ke sistem rekap.")
+    
+    col_upload, col_tahapan = st.columns([2, 1])
+    
+    with col_upload:
+        file_sipd = st.file_uploader("Unggah Excel Tarikan SIPD (.xlsx / .xls)", type=["xlsx", "xls"])
+        
+    with col_tahapan:
+        nama_tahapan = st.text_input("🏷️ Nama Tahapan", placeholder="Cth: APBD Pokok 2026", help="Ketik nama tahapan anggaran ini.")
+        
+    if file_sipd and nama_tahapan:
+        if st.button("⚡ PROSES & LABELI DATA", type="primary", use_container_width=True):
+            with st.spinner("Membaca dan menyuntikkan label tahapan..."):
+                try:
+                    # 1. Baca data Excel menggunakan Pandas
+                    df_sipd = pd.read_excel(file_sipd)
+                    
+                    # 2. Tambahkan kolom TAHAPAN di paling ujung kanan
+                    df_sipd['TAHAPAN'] = nama_tahapan
+                    
+                    st.success(f"✅ Berhasil memproses {len(df_sipd)} baris data dan menambahkan label '{nama_tahapan}'.")
+                    
+                    # 3. Tampilkan Preview Datanya
+                    st.write("👀 **Preview Data:**")
+                    st.dataframe(df_sipd.head(10), use_container_width=True)
+                    
+                    # 4. Siapkan file untuk di-download (Sebagai Master Data siap rekap)
+                    output_sipd = io.BytesIO()
+                    # Simpan ke Excel tanpa menyertakan nomor index pandas (index=False)
+                    df_sipd.to_excel(output_sipd, index=False, engine='openpyxl')
+                    output_sipd.seek(0)
+                    
+                    st.download_button(
+                        label="📥 Download Data Siap Rekap",
+                        data=output_sipd,
+                        file_name=f"Master_{nama_tahapan.replace(' ', '_')}.xlsx",
+                        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                        type="primary"
+                    )
+                except Exception as e:
+                    st.error(f"❌ Gagal memproses file SIPD: {e}")
+                    
+    elif file_sipd and not nama_tahapan:
+        st.warning("⚠️ Silakan isi kotak **Nama Tahapan** terlebih dahulu untuk memunculkan tombol proses.")
+
+# ==========================================
+# MODUL 3: REKAP SIPD (COMING SOON)
+# ==========================================
+elif menu_pilihan == "📊 2. Rekap SIPD (Coming Soon)":
+    st.title("📊 Sistem Rekapitulasi SIPD")
+    st.info("🚧 Modul ini sedang dalam tahap pengembangan. Nantinya di sini kita bisa menarik data, membuat pivot, dan membandingkan pagu antar tahapan.")
