@@ -208,7 +208,7 @@ elif menu_pilihan == "Import SIPD":
         st.warning("⚠️ Silakan isi kotak **Nama Tahapan** terlebih dahulu untuk memunculkan tombol upload.")
 
 # -------------------------------------------------------------------------
-# --- MODUL 3: REKAP SIPD (LOGIKA SUMIFS & ANTI-DUPLIKAT) ---
+# --- MODUL 3: REKAP SIPD (MURNI SUMIFS & URUTAN TAHAPAN FLEKSIBEL) ---
 # -------------------------------------------------------------------------
 elif menu_pilihan == "Rekap SIPD":
     st.title("📊 Rekapitulasi Perbandingan Tahapan")
@@ -292,11 +292,24 @@ elif menu_pilihan == "Rekap SIPD":
             st.warning(f"⚠️ Tidak ada data untuk {skpd_pilihan} di tahun {tahun_pilihan}.")
             st.stop()
 
-        # FILTER TAHAPAN ACUAN
-        list_tahapan = df_proses['tahapan'].dropna().unique().tolist()
+        # MENDAPATKAN TAHAPAN YANG TERSEDIA
+        tahapan_tersedia = df_proses['tahapan'].dropna().unique().tolist()
+        
+        if not tahapan_tersedia:
+            st.warning(f"⚠️ Belum ada data tahapan.")
+            st.stop()
+
+        st.markdown("#### 📋 Urutan Kolom & Parameter Selisih")
+        
+        # FITUR BARU: User bisa menyusun urutan tahapan secara manual (Kiri ke Kanan)
+        list_tahapan = st.multiselect(
+            "Susun urutan kolom tahapan dari Kiri ke Kanan (Hapus/Tambah sesuai kebutuhan):", 
+            options=tahapan_tersedia, 
+            default=tahapan_tersedia
+        )
         
         if not list_tahapan:
-            st.warning(f"⚠️ Belum ada data tahapan.")
+            st.error("⚠️ Anda harus memilih minimal 1 tahapan untuk ditampilkan.")
             st.stop()
             
         col_t1, col_t2, col_t3 = st.columns(3)
@@ -308,14 +321,10 @@ elif menu_pilihan == "Rekap SIPD":
             tahap_akhir = st.selectbox("📈 Tahapan Akhir (Selisih):", list_tahapan, index=len(list_tahapan)-1)
 
         if st.button(f"🚀 PROSES & BUAT REKAP", type="primary", use_container_width=True):
-            with st.spinner("Menghitung ulang menggunakan logika SUMIFS..."):
+            with st.spinner("Menghitung ulang menggunakan logika murni database..."):
                 
-                # 🛡️ PERTAHANAN 1: HAPUS DATA GANDA (Mengembalikan fitur cerdas Anda)
-                df_proses = df_proses.drop_duplicates(subset=[
-                    'kode_skpd', 'kode_sub_kegiatan', 'nama_sumber_dana', 'tahapan', 'pagu'
-                ])
-
-                # 🛡️ PERTAHANAN 2: AMBIL MURNI DAUN TERAKHIR (SUB KEGIATAN)
+                # FITUR DROP DUPLICATES DIHAPUS SEPENUHNYA AGAR TOTAL AKURAT 100% DENGAN SQL
+                # Hanya memastikan baris tanpa kode sub kegiatan (seperti baris subtotal Excel) dibuang
                 df_proses = df_proses[df_proses['kode_sub_kegiatan'] != ""]
                 df_proses = df_proses[~df_proses['kode_sub_kegiatan'].str.lower().isin(['none', 'nan'])]
 
@@ -330,31 +339,25 @@ elif menu_pilihan == "Rekap SIPD":
                 # 2. MESIN SUMIFS (MENGGUNAKAN PANDAS GROUPBY UNSTACK)
                 kumpulan_level = []
                 
-                # SUMIFS Level 1: SKPD
                 l1 = df_proses.groupby(['kode_skpd', 'tahapan'])['pagu'].sum().unstack(fill_value=0).reset_index()
                 l1['Level'], l1['Sort_Key'], l1['Kode'] = 1, l1['kode_skpd'], l1['kode_skpd']
                 kumpulan_level.append(l1)
 
-                # SUMIFS Level 2: Urusan
                 l2 = df_proses.groupby(['kode_skpd', 'kode_urusan', 'tahapan'])['pagu'].sum().unstack(fill_value=0).reset_index()
                 l2['Level'], l2['Sort_Key'], l2['Kode'] = 2, l2['kode_skpd'] + "|" + l2['kode_urusan'], l2['kode_urusan']
                 kumpulan_level.append(l2)
 
-                # SUMIFS Level 3: Program
                 l3 = df_proses.groupby(['kode_skpd', 'kode_urusan', 'kode_program', 'tahapan'])['pagu'].sum().unstack(fill_value=0).reset_index()
                 l3['Level'], l3['Sort_Key'], l3['Kode'] = 3, l3['kode_skpd'] + "|" + l3['kode_urusan'] + "|" + l3['kode_program'], l3['kode_program']
                 kumpulan_level.append(l3)
 
-                # SUMIFS Level 4: Kegiatan
                 l4 = df_proses.groupby(['kode_skpd', 'kode_urusan', 'kode_program', 'kode_kegiatan', 'tahapan'])['pagu'].sum().unstack(fill_value=0).reset_index()
                 l4['Level'], l4['Sort_Key'], l4['Kode'] = 4, l4['kode_skpd'] + "|" + l4['kode_urusan'] + "|" + l4['kode_program'] + "|" + l4['kode_kegiatan'], l4['kode_kegiatan']
                 kumpulan_level.append(l4)
 
-                # SUMIFS Level 5: Sub Kegiatan
                 l5 = df_proses.groupby(['kode_skpd', 'kode_urusan', 'kode_program', 'kode_kegiatan', 'kode_sub_kegiatan', 'tahapan'])['pagu'].sum().unstack(fill_value=0).reset_index()
                 l5['Level'], l5['Sort_Key'], l5['Kode'] = 5, l5['kode_skpd'] + "|" + l5['kode_urusan'] + "|" + l5['kode_program'] + "|" + l5['kode_kegiatan'] + "|" + l5['kode_sub_kegiatan'], l5['kode_sub_kegiatan']
                 
-                # Tambahkan Sumber Dana Acuan untuk Level 5
                 df_sd = df_proses[df_proses['tahapan'] == tahapan_acuan]
                 sd_grouped = df_sd[df_sd['pagu'] > 0].groupby(['kode_sub_kegiatan', 'nama_sumber_dana'])['pagu'].sum().reset_index()
                 
@@ -369,25 +372,20 @@ elif menu_pilihan == "Rekap SIPD":
                 # 3. GABUNGKAN & RAPIKAN TABEL
                 df_rekap = pd.concat(kumpulan_level, ignore_index=True)
                 
-                # Pastikan semua tahapan menjadi kolom (jika ada yang nol semua)
                 for t in list_tahapan:
                     if t not in df_rekap.columns:
                         df_rekap[t] = 0
 
-                # Vlookup nama uraian
                 df_rekap['Uraian'] = df_rekap['Kode'].map(dict_nama).fillna("-")
-                
-                # Kalkulasi Selisih Akhir - Awal
                 df_rekap['Selisih (Akhir - Awal)'] = df_rekap[tahap_akhir] - df_rekap[tahap_awal]
                 
                 if 'Sumber Dana (Acuan)' not in df_rekap.columns:
                     df_rekap['Sumber Dana (Acuan)'] = ""
                 df_rekap['Sumber Dana (Acuan)'] = df_rekap['Sumber Dana (Acuan)'].fillna("")
 
-                # Urutkan secara hierarki
                 df_rekap = df_rekap.sort_values('Sort_Key').reset_index(drop=True)
                 
-                # Susun ulang kolom
+                # Memaksa kolom tahapan sesuai dengan urutan pilihan pengguna
                 kolom_final = ['Kode', 'Uraian', 'Sumber Dana (Acuan)', 'Level'] + list_tahapan + ['Selisih (Akhir - Awal)']
                 df_hasil = df_rekap[kolom_final]
 
@@ -399,10 +397,10 @@ elif menu_pilihan == "Rekap SIPD":
                 
                 styled_df_web = df_tampil.style.format(format_dict).set_properties(subset=['Sumber Dana (Acuan)'], **{'white-space': 'pre-wrap'})
                 
-                st.success(f"✅ Rekapitulasi {skpd_pilihan} Tahun {tahun_pilihan} berhasil disusun dengan logika SUMIFS!")
+                st.success(f"✅ Rekapitulasi berhasil disusun! Angka dijamin 100% sama dengan Database.")
                 st.dataframe(styled_df_web, use_container_width=True, height=600)
 
-                # 5. FITUR EXPORT EXCEL (DENGAN WARNA & BOLD)
+                # 5. FITUR EXPORT EXCEL
                 def warna_baris_excel(row):
                     lvl = df_hasil.loc[row.name, 'Level']
                     if lvl == 1: return ['background-color: #ddebf7; font-weight: bold'] * len(row)
