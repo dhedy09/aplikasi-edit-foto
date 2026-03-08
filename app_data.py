@@ -273,7 +273,7 @@ elif menu_pilihan == "Rekap SIPD":
         
         df_tahun = df[df['tahun'] == tahun_pilihan].copy()
 
-        # 3. FILTER SKPD (Khusus Tahun Terpilih, Tanpa Hardcode SOTK)
+        # 3. FILTER SKPD
         list_skpd = sorted(df_tahun['nama_skpd'].dropna().unique().tolist())
         list_skpd = [x for x in list_skpd if x != ""]
         list_skpd.insert(0, "SEMUA SKPD")
@@ -281,7 +281,6 @@ elif menu_pilihan == "Rekap SIPD":
         with col_skpd:
             skpd_pilihan = st.selectbox("🏢 Pilih SKPD:", list_skpd)
 
-        # Isolasi DataFrame berdasarkan SKPD
         if skpd_pilihan != "SEMUA SKPD":
             df_proses = df_tahun[df_tahun['nama_skpd'] == skpd_pilihan].copy()
         else:
@@ -291,7 +290,7 @@ elif menu_pilihan == "Rekap SIPD":
             st.warning(f"⚠️ Tidak ada data untuk {skpd_pilihan} di tahun {tahun_pilihan}.")
             st.stop()
 
-        # 4. FILTER TAHAPAN ACUAN (Berdasarkan SKPD & Tahun Terpilih)
+        # 4. FILTER TAHAPAN ACUAN
         list_tahapan = df_proses['tahapan'].dropna().unique().tolist()
         
         if not list_tahapan:
@@ -346,7 +345,6 @@ elif menu_pilihan == "Rekap SIPD":
                     tree_keg[k_prog].add(k_keg)
                     tree_sub[k_keg].add(k_sub)
 
-                    # Akumulasi Pagu ke atas (Hierarki)
                     dict_pagu[f"{k_skpd}|{thp}"] += pagu
                     dict_pagu[f"{k_urus}|{thp}"] += pagu
                     dict_pagu[f"{k_prog}|{thp}"] += pagu
@@ -403,31 +401,33 @@ elif menu_pilihan == "Rekap SIPD":
                                     row_data["Selisih (Akhir - Awal)"] = dict_pagu[f"{s_key}|{tahap_akhir}"] - dict_pagu[f"{s_key}|{tahap_awal}"]
                                     baris_rekap.append(row_data)
 
-                # 7. RENDER KE DATAFRAME DAN STYLING
+                # 7. RENDER TAMPILAN WEB (POLOS / NORMAL)
                 df_hasil = pd.DataFrame(baris_rekap)
                 df_tampil = df_hasil.drop(columns=['Level'])
                 
-                # PERBAIKAN KEYERROR: Mengambil 'Level' dari df_hasil menggunakan index baris
-                def warna_baris(row):
-                    lvl = df_hasil.loc[row.name, 'Level']
-                    if lvl == 1: return ['background-color: #ddebf7; font-weight: bold'] * len(row)
-                    if lvl == 2: return ['background-color: #fff2cc; font-weight: bold'] * len(row)
-                    if lvl == 3: return ['background-color: #fce4d6; font-weight: bold'] * len(row)
-                    if lvl == 4: return ['background-color: #e2efda; font-weight: bold'] * len(row)
-                    return ['background-color: white'] * len(row)
-
                 kolom_angka = list_tahapan + ['Selisih (Akhir - Awal)']
                 format_dict = {col: "{:,.0f}" for col in kolom_angka}
                 
-                styled_df = df_tampil.style.apply(warna_baris, axis=1).format(format_dict).set_properties(subset=['Sumber Dana (Acuan)'], **{'white-space': 'pre-wrap'})
+                # Tampilan di layar aplikasi (tidak ada warna background agar aman di semua tema)
+                styled_df_web = df_tampil.style.format(format_dict).set_properties(subset=['Sumber Dana (Acuan)'], **{'white-space': 'pre-wrap'})
                 
                 st.success(f"✅ Rekapitulasi {skpd_pilihan} Tahun {tahun_pilihan} berhasil disusun!")
-                st.dataframe(styled_df, use_container_width=True, height=600)
+                st.dataframe(styled_df_web, use_container_width=True, height=600)
 
-                # 8. FITUR EXPORT EXCEL
+                # 8. FITUR EXPORT EXCEL (DENGAN WARNA & BOLD)
+                def warna_baris_excel(row):
+                    lvl = df_hasil.loc[row.name, 'Level']
+                    if lvl == 1: return ['background-color: #ddebf7; font-weight: bold'] * len(row) # SKPD
+                    if lvl == 2: return ['background-color: #fff2cc; font-weight: bold'] * len(row) # Urusan
+                    if lvl == 3: return ['background-color: #fce4d6; font-weight: bold'] * len(row) # Program
+                    if lvl == 4: return ['background-color: #e2efda; font-weight: bold'] * len(row) # Kegiatan
+                    return [''] * len(row) # Sub Kegiatan (Normal/Kosong)
+
+                styled_df_excel = df_tampil.style.apply(warna_baris_excel, axis=1).format(format_dict)
+
                 output_excel = io.BytesIO()
                 with pd.ExcelWriter(output_excel, engine='openpyxl') as writer:
-                    df_tampil.to_excel(writer, index=False, sheet_name=f'Rekap_{tahun_pilihan}')
+                    styled_df_excel.to_excel(writer, index=False, sheet_name=f'Rekap_{tahun_pilihan}')
                 output_excel.seek(0)
                 
                 nama_file = "SEMUA_SKPD" if skpd_pilihan == "SEMUA SKPD" else skpd_pilihan.replace(" ", "_").replace("/", "_")
@@ -439,6 +439,7 @@ elif menu_pilihan == "Rekap SIPD":
                     mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                     type="primary"
                 )
+
 
 
 
