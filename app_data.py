@@ -316,16 +316,17 @@ elif menu_pilihan == "Rekap SIPD":
                 
                 # LANGKAH B: MERACIK TEKS SUMBER DANA
                 df_sd = df_proses[df_proses['tahapan'] == tahapan_acuan].copy()
-                
-                # 1. Bersihkan "spasi siluman" di awal dan akhir nama sumber dana bawaan SIPD
                 df_sd['nama_sumber_dana'] = df_sd['nama_sumber_dana'].astype(str).str.strip()
                 
                 sd_grouped = df_sd.groupby(['kode_skpd', 'kode_urusan', 'kode_program', 'kode_kegiatan', 'kode_sub_kegiatan', 'nama_sumber_dana'])['pagu'].sum().reset_index()
-                sd_grouped['teks_sd'] = sd_grouped.apply(lambda row: f"{row['nama_sumber_dana']} = {row['pagu']:,.0f}", axis=1)
                 
-                # 2. PERBAIKAN: Gabungkan dengan '\n' murni TANPA spasi di kiri/kanannya
+                # Fungsi pembuat format Rupiah Indonesia (Titik sebagai pemisah ribuan)
+                def format_rupiah(angka):
+                    return f"Rp {angka:,.0f}".replace(",", ".")
+                
+                sd_grouped['teks_sd'] = sd_grouped.apply(lambda row: f"{row['nama_sumber_dana']} = {format_rupiah(row['pagu'])}", axis=1)
+                
                 sd_final = sd_grouped.groupby(['kode_skpd', 'kode_urusan', 'kode_program', 'kode_kegiatan', 'kode_sub_kegiatan'])['teks_sd'].apply(lambda x: '\n'.join(x)).reset_index()
-                
                 sd_final.rename(columns={'teks_sd': 'Sumber Dana'}, inplace=True)
 
                 # LANGKAH C: MEMBUAT HIERARKI BERJENJANG (SKPD -> Sub Kegiatan)
@@ -384,51 +385,40 @@ elif menu_pilihan == "Rekap SIPD":
                 kolom_final = ['Kode', 'Uraian', 'Sumber Dana'] + list_tahapan
                 df_tampil = df_rekap[kolom_final].copy()
                 
-                # LANGKAH E: PROSES WARNA (BARIS & HEADER)
+                # LANGKAH E: PROSES WARNA (HANYA UNTUK EXCEL DOWNLOAD)
                 def beri_warna_dan_bold(df_t):
                     style_df = pd.DataFrame('', index=df_t.index, columns=df_t.columns)
                     for idx, baris in df_rekap.iterrows():
                         lvl = baris['Level']
-                        if lvl == 1:   
-                            style_df.loc[idx, :] = 'background-color: #CFE2F3; font-weight: bold;'
-                        elif lvl == 2: 
-                            style_df.loc[idx, :] = 'background-color: #D9EAD3; font-weight: bold;'
-                        elif lvl == 3: 
-                            style_df.loc[idx, :] = 'background-color: #FFF2CC; font-weight: bold;'
-                        elif lvl == 4: 
-                            style_df.loc[idx, :] = 'background-color: #FCE5CD; font-weight: bold;'
+                        if lvl == 1:   # SKPD = Biru Tegas
+                            style_df.loc[idx, :] = 'background-color: #8EA9DB; font-weight: bold;'
+                        elif lvl == 2: # Urusan = Hijau Daun
+                            style_df.loc[idx, :] = 'background-color: #A9D08E; font-weight: bold;'
+                        elif lvl == 3: # Program = Kuning Emas
+                            style_df.loc[idx, :] = 'background-color: #FFD966; font-weight: bold;'
+                        elif lvl == 4: # Kegiatan = Oranye Terang
+                            style_df.loc[idx, :] = 'background-color: #F4B183; font-weight: bold;'
                     return style_df
 
-                # Desain warna khusus untuk Judul Tabel (Header)
-                gaya_header = [{
-                    'selector': 'th',
-                    'props': [
-                        ('background-color', 'black'), # <-- Diubah ke Hitam pekat
-                        ('color', 'white'),            # Teks Putih
-                        ('font-weight', 'bold'),
-                        ('text-align', 'center'),
-                        ('font-size', '15px')
-                    ]
-                }]
-
-                # Terapkan gaya baris + gaya header sekaligus
-                styled_df = df_tampil.style.apply(beri_warna_dan_bold, axis=None).set_table_styles(gaya_header)
+                # Bungkus data HANYA untuk di-export ke Excel (Tanpa warna header hitam agar tidak nabrak di Excel)
+                styled_df = df_tampil.style.apply(beri_warna_dan_bold, axis=None)
                 
-                # TAMPILKAN HASILNYA
+                # TAMPILKAN HASILNYA DI LAYAR (NORMAL/PUTIH SAJA)
                 pesan_sukses = "Semua SKPD" if skpd_pilihan == "SEMUA SKPD" else skpd_pilihan
                 st.success(f"🎉 Rekap untuk {pesan_sukses} Berhasil Dibuat!")
-                st.dataframe(styled_df, use_container_width=True)
+                
+                # Menampilkan df_tampil (Data murni tanpa warna) agar enteng di browser
+                st.dataframe(df_tampil, use_container_width=True)
                 
                 # SIAPKAN TOMBOL DOWNLOAD EXCEL
                 output_excel = io.BytesIO()
-                styled_df.to_excel(output_excel, index=False, engine='openpyxl')
+                styled_df.to_excel(output_excel, index=False, engine='openpyxl') # Export membawa warna barunya!
                 output_excel.seek(0)
                 
-                # Penamaan file otomatis mengikuti nama SKPD yang difilter
                 nama_file_skpd = "SEMUA_SKPD" if skpd_pilihan == "SEMUA SKPD" else skpd_pilihan.replace(" ", "_").replace("/", "_")
                 
                 st.download_button(
-                    label="📥 Download Excel Rekap (Format Warna)",
+                    label="📥 Download Excel Rekap (Format Warna & Rupiah)",
                     data=output_excel,
                     file_name=f"Rekap_{nama_file_skpd}_{tahapan_acuan.replace(' ', '_')}.xlsx",
                     mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
