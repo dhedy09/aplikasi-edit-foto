@@ -268,13 +268,15 @@ elif menu_pilihan == "Rekap SIPD":
         df_tahun = df[df['tahun'] == tahun_pilihan].copy()
 
         # =====================================================================
-        # EKSEKUSI IDE ANDA: CEGAT & UBAH PAKSA DATA TAHAPAN AWAL SEJAK DINI
+        # TRANSLASI SOTK & PENYERAGAMAN NAMA SKPD (DINAMIS SEPERTI VBA)
         # =====================================================================
-        # 1. Ubah paksa kode SKPD lama menjadi kode SKPD baru (Persis seperti VBA Anda)
+        # 1. Ubah paksa kode SKPD lama menjadi kode SKPD baru
         df_tahun['kode_skpd'] = df_tahun['kode_skpd'].replace({"1.01.2.22.0.00.16.0000": "1.01.0.00.0.00.16.0000"})
         
-        # 2. Ubah paksa SEMUA nama SKPD yang kodenya sudah baru tersebut menjadi "Dinas Pendidikan"
-        df_tahun.loc[df_tahun['kode_skpd'] == "1.01.0.00.0.00.16.0000", 'nama_skpd'] = "Dinas Pendidikan"
+        # 2. Seragamkan Nama SKPD menggunakan nama dari entri terakhir (Tahap Akhir)
+        # Ini memastikan tahun 2025 tetap "Dinas Pendidikan dan Kebudayaan", sedangkan 2024 jadi "Dinas Pendidikan"
+        dict_skpd = df_tahun.drop_duplicates('kode_skpd', keep='last').set_index('kode_skpd')['nama_skpd'].to_dict()
+        df_tahun['nama_skpd'] = df_tahun['kode_skpd'].map(dict_skpd).fillna(df_tahun['nama_skpd'])
         # =====================================================================
 
         # 2. AMBIL DAFTAR TAHAPAN & SKPD
@@ -301,13 +303,27 @@ elif menu_pilihan == "Rekap SIPD":
                     st.warning(f"⚠️ Tidak ada data untuk {skpd_pilihan} di database.")
                     st.stop()
 
+                # =====================================================================
+                # PENYERAGAMAN NAMA URUSAN s.d SUB KEGIATAN (MENCEGAH PECAH BARIS/0)
+                # =====================================================================
+                dict_urusan = df_proses.drop_duplicates('kode_urusan', keep='last').set_index('kode_urusan')['nama_urusan'].to_dict()
+                dict_program = df_proses.drop_duplicates('kode_program', keep='last').set_index('kode_program')['nama_program'].to_dict()
+                dict_kegiatan = df_proses.drop_duplicates('kode_kegiatan', keep='last').set_index('kode_kegiatan')['nama_kegiatan'].to_dict()
+                dict_sub = df_proses.drop_duplicates('kode_sub_kegiatan', keep='last').set_index('kode_sub_kegiatan')['nama_sub_kegiatan'].to_dict()
+
+                df_proses['nama_urusan'] = df_proses['kode_urusan'].map(dict_urusan).fillna(df_proses['nama_urusan'])
+                df_proses['nama_program'] = df_proses['kode_program'].map(dict_program).fillna(df_proses['nama_program'])
+                df_proses['nama_kegiatan'] = df_proses['kode_kegiatan'].map(dict_kegiatan).fillna(df_proses['nama_kegiatan'])
+                df_proses['nama_sub_kegiatan'] = df_proses['kode_sub_kegiatan'].map(dict_sub).fillna(df_proses['nama_sub_kegiatan'])
+                # =====================================================================
+
                 # Isi nilai kosong pada kode agar tidak error saat diurutkan
                 kolom_teks = ['kode_skpd', 'nama_skpd', 'kode_urusan', 'nama_urusan', 'kode_program', 'nama_program', 
                               'kode_kegiatan', 'nama_kegiatan', 'kode_sub_kegiatan', 'nama_sub_kegiatan', 'nama_sumber_dana']
                 for col in kolom_teks:
                     df_proses[col] = df_proses[col].fillna("")
 
-                # LANGKAH A: PIVOT PAGU PER TAHAPAN (Gunakan data yang sudah difilter: df_proses)
+                # LANGKAH A: PIVOT PAGU PER TAHAPAN
                 df_pivot = df_proses.pivot_table(
                     index=['kode_skpd', 'nama_skpd', 'kode_urusan', 'nama_urusan', 'kode_program', 'nama_program', 
                            'kode_kegiatan', 'nama_kegiatan', 'kode_sub_kegiatan', 'nama_sub_kegiatan'],
@@ -316,13 +332,20 @@ elif menu_pilihan == "Rekap SIPD":
                     aggfunc='sum'
                 ).reset_index().fillna(0)
                 
+                # --- FIX ERROR KEYERROR ---
+                # Memastikan SEMUA tahapan ada di kolom Pivot, meskipun nilainya 0 semua
+                for t in list_tahapan:
+                    if t not in df_pivot.columns:
+                        df_pivot[t] = 0
+                # --------------------------
+                
                 # LANGKAH B: MERACIK TEKS SUMBER DANA
                 df_sd = df_proses[df_proses['tahapan'] == tahapan_acuan].copy()
                 df_sd['nama_sumber_dana'] = df_sd['nama_sumber_dana'].astype(str).str.strip()
                 
                 sd_grouped = df_sd.groupby(['kode_skpd', 'kode_urusan', 'kode_program', 'kode_kegiatan', 'kode_sub_kegiatan', 'nama_sumber_dana'])['pagu'].sum().reset_index()
                 
-                # Fungsi pembuat format Rupiah Indonesia (Titik sebagai pemisah ribuan)
+                # Fungsi pembuat format Rupiah Indonesia
                 def format_rupiah(angka):
                     return f"Rp {angka:,.0f}".replace(",", ".")
                 
@@ -377,10 +400,7 @@ elif menu_pilihan == "Rekap SIPD":
                 df_rekap = df_rekap.sort_values('Sort_Key').reset_index(drop=True)
                 
                 # --- PERBAIKAN LOGIKA SUMBER DANA ---
-                # 1. Jika baris adalah Level 5 (Sub Kegiatan) DAN Sumber Dananya kosong, isi teks peringatan
                 df_rekap.loc[(df_rekap['Level'] == 5) & (df_rekap['Sumber Dana'].isna()), 'Sumber Dana'] = "Sumber Dana Tidak Ditemukan"
-                
-                # 2. Sisanya (Level 1-4 / SKPD s.d Kegiatan), pastikan tampil bersih/kosong
                 df_rekap['Sumber Dana'] = df_rekap['Sumber Dana'].fillna("")
                 
                 # Susun ulang kolom hasil akhir
@@ -402,19 +422,16 @@ elif menu_pilihan == "Rekap SIPD":
                             style_df.loc[idx, :] = 'background-color: #F4B183; font-weight: bold;'
                     return style_df
 
-                # Bungkus data HANYA untuk di-export ke Excel (Tanpa warna header hitam agar tidak nabrak di Excel)
                 styled_df = df_tampil.style.apply(beri_warna_dan_bold, axis=None)
                 
-                # TAMPILKAN HASILNYA DI LAYAR (NORMAL/PUTIH SAJA)
+                # TAMPILKAN HASILNYA DI LAYAR
                 pesan_sukses = "Semua SKPD" if skpd_pilihan == "SEMUA SKPD" else skpd_pilihan
                 st.success(f"🎉 Rekap untuk {pesan_sukses} Berhasil Dibuat!")
-                
-                # Menampilkan df_tampil (Data murni tanpa warna) agar enteng di browser
                 st.dataframe(df_tampil, use_container_width=True)
                 
                 # SIAPKAN TOMBOL DOWNLOAD EXCEL
                 output_excel = io.BytesIO()
-                styled_df.to_excel(output_excel, index=False, engine='openpyxl') # Export membawa warna barunya!
+                styled_df.to_excel(output_excel, index=False, engine='openpyxl')
                 output_excel.seek(0)
                 
                 nama_file_skpd = "SEMUA_SKPD" if skpd_pilihan == "SEMUA SKPD" else skpd_pilihan.replace(" ", "_").replace("/", "_")
