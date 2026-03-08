@@ -187,8 +187,8 @@ elif menu_pilihan == "Import SIPD":
                     # Terapkan pergantian nama kolom
                     df_sipd.rename(columns=pemetaan_kolom, inplace=True)
                     
-                    # 4. Ubah nilai kosong (NaN) di Excel menjadi None agar Database tidak error
-                    df_sipd = df_sipd.where(pd.notnull(df_sipd), None)
+                    # 4. Ubah nilai kosong (NaN) dengan aman (Ubah tipe ke Object dulu agar Pandas tidak keras kepala)
+                    df_sipd = df_sipd.astype(object).where(pd.notnull(df_sipd), None)
                     
                     # 5. Ubah data menjadi format Kamus (Dictionary) siap kirim
                     data_siap_kirim = df_sipd.to_dict(orient='records')
@@ -214,3 +214,4 @@ elif menu_pilihan == "Import SIPD":
 elif menu_pilihan == "Rekap SIPD":
     st.title("📊 Sistem Rekapitulasi SIPD")
     st.info("🚧 Database sudah aktif! Menu rekap sedang dibangun...")
+
