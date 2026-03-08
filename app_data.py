@@ -213,21 +213,25 @@ elif menu_pilihan == "Rekap SIPD":
     st.title("📊 Rekapitulasi Perbandingan Tahapan")
     st.write("Tabel rekapitulasi hierarki anggaran dengan perbandingan antar tahapan.")
     
-    # 1. Ambil data dari Supabase
-    with st.spinner("Mengambil data dari database..."):
+    # 1. Ambil data dari Supabase dengan FILTER SPESIFIK
+    with st.spinner("Mengambil data Dinas Pendidikan dari database..."):
         try:
-            response = supabase.table("rekap_sipd").select("*").execute()
+            # KITA SURUH SUPABASE HANYA MENGAMBIL 2 KODE INI SAJA
+            kode_target = ["1.01.0.00.0.00.16.0000", "1.01.2.22.0.00.16.0000"]
+            
+            response = supabase.table("rekap_sipd").select("*").in_("kode_skpd", kode_target).execute()
             data_db = response.data
         except Exception as e:
             st.error(f"❌ Gagal mengambil data: {e}")
             st.stop()
 
     if not data_db:
-        st.warning("⚠️ Database masih kosong. Silakan import data terlebih dahulu di menu Import SIPD.")
+        st.warning("⚠️ Data Dinas Pendidikan tidak ditemukan di database. Pastikan Anda sudah mengimpor data untuk OPD ini.")
+        st.stop()
     else:
         df = pd.DataFrame(data_db)
         
-        # --- PERBAIKAN: Bersihkan spasi tersembunyi dari data ---
+        # Bersihkan spasi tersembunyi
         df['kode_skpd'] = df['kode_skpd'].astype(str).str.strip()
         df['nama_skpd'] = df['nama_skpd'].astype(str).str.strip()
         
@@ -236,20 +240,8 @@ elif menu_pilihan == "Rekap SIPD":
             "1.01.2.22.0.00.16.0000": "1.01.0.00.0.00.16.0000"
         }
         df['kode_skpd'] = df['kode_skpd'].replace(MAP_SKPD)
-        
-        # Seragamkan nama SKPD untuk kode yang sudah ditranslasi
         df.loc[df['kode_skpd'] == "1.01.0.00.0.00.16.0000", 'nama_skpd'] = "Dinas Pendidikan"
         
-        # Filter HANYA untuk Dinas Pendidikan
-        df_filter = df[df['kode_skpd'] == "1.01.0.00.0.00.16.0000"]
-
-        if df_filter.empty:
-            st.warning("⚠️ Tidak ada data untuk Dinas Pendidikan di database.")
-            # --- FITUR DEBUGGING ---
-            st.info("🔍 DIAGNOSA: Berikut adalah daftar Kode dan Nama SKPD yang sebenarnya ada di database Anda saat ini:")
-            st.dataframe(df[['kode_skpd', 'nama_skpd']].drop_duplicates())
-        else:
-            df = df_filter
             # 3. IDENTIFIKASI TAHAPAN
             list_tahapan = df['tahapan'].dropna().unique().tolist()
             
@@ -399,5 +391,6 @@ elif menu_pilihan == "Rekap SIPD":
                         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                         type="primary"
                     )
+
 
 
