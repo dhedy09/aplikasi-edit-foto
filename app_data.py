@@ -53,17 +53,33 @@ with st.sidebar:
     st.markdown("<h2 style='text-align: center;'>📊 Mamayo Data</h2>", unsafe_allow_html=True)
     st.markdown("---")
     
-    menu_pilihan = option_menu(
+    # --- MENU 1: ALAT UMUM ---
+    menu_umum = option_menu(
         menu_title=None,
-        # KUNCI: Sisipkan teks pembatas di antara opsi
-        options=["Alat Excel", "─── DATABASE SIPD ───", "Import SIPD", "Rekap SIPD"],
-        # Gunakan ikon strip/kosong untuk pembatas (misal: 'grip-horizontal' atau 'dash')
-        icons=["wrench-adjustable", "grip-horizontal", "cloud-arrow-up-fill", "bar-chart-steps"], 
-        default_index=0,
-        key="menu_utama",
+        options=["Alat Excel"],
+        icons=["wrench-adjustable"], 
+        key="menu_umum",
         styles={
             "container": {"padding": "0!important", "background-color": "transparent"},
             "icon": {"color": "#ffc107", "font-size": "18px"}, 
+            "nav-link": {"font-size": "15px", "text-align": "left", "margin":"5px", "--hover-color": "#262730"},
+            "nav-link-selected": {"background-color": "#0083B8", "color": "white"},
+        }
+    )
+
+    # PEMBATAS ASLI
+    st.markdown("<div style='margin: 10px 0px; border-bottom: 2px solid #555;'></div>", unsafe_allow_html=True)
+    st.caption("📂 DATABASE SIPD")
+
+    # --- MENU 2: KHUSUS SIPD ---
+    menu_sipd = option_menu(
+        menu_title=None,
+        options=["Import SIPD", "Rekap SIPD"],
+        icons=["cloud-arrow-up-fill", "bar-chart-steps"], 
+        key="menu_sipd",
+        styles={
+            "container": {"padding": "0!important", "background-color": "transparent"},
+            "icon": {"color": "#00d4ff", "font-size": "18px"}, 
             "nav-link": {"font-size": "15px", "text-align": "left", "margin":"5px", "--hover-color": "#262730"},
             "nav-link-selected": {"background-color": "#0083B8", "color": "white"},
         }
@@ -141,10 +157,6 @@ if menu_pilihan == "Alat Excel":
                         )
                     except Exception as e:
                         st.error(f"❌ Terjadi kesalahan: {e}")
-
-elif menu_pilihan == "─── DATABASE SIPD ───":
-    # Tampilkan pesan jika garis pembatasnya tidak sengaja diklik
-    st.info("👆 Kategori SIPD. Silakan klik menu **Import SIPD** atau **Rekap SIPD** di sidebar kiri.")
 
 # -------------------------------------------------------------------------
 # --- MODUL 2: IMPORT SIPD KE DATABASE ---
@@ -766,7 +778,6 @@ elif menu_pilihan == "Rekap SIPD":
                             type="primary",
                             key="dl_t4"
                         )
-
 
 
 
