@@ -581,146 +581,187 @@ elif menu_pilihan == "Rekap SIPD":
                     st.download_button("📥 Download Excel (Sumber Dana)", output_excel_sd, f"SumberDana_{nama_file_export}_{tahun_pilihan}.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", key="dl_t2")
 
         # -------------------------------------------------------------------
-        # TAB 3: INTEGRASI LINK DPA
+        # TAB 3: INTEGRASI LINK DPA (HYBRID LOKAL & CLOUD)
         # -------------------------------------------------------------------
         with tab3:
             st.info(f"💡 Menampilkan perbandingan: **{tahap_awal}** vs **{tahap_akhir}**")
-            file_link = st.file_uploader("📂 Upload File Excel Link DPA (Pastikan ada kolom 'kode sub' dan 'url')", type=["xlsx", "xls", "csv"], key="up_link")
             
+            # Pilihan Mode Input Data
+            sumber_data_dpa = st.radio("Pilih Mode Input Link DPA:", ["📂 Upload File Lokal (Excel/CSV)", "🌐 Link Google Sheet (Public)"], horizontal=True, key="radio_dpa")
+            
+            file_link = None
+            link_dpa_input = ""
+            
+            if sumber_data_dpa == "📂 Upload File Lokal (Excel/CSV)":
+                file_link = st.file_uploader("📂 Upload File Excel Link DPA (Pastikan ada kolom 'kode sub' dan 'url')", type=["xlsx", "xls", "csv"], key="up_link")
+            else:
+                link_dpa_input = st.text_input("🔗 Paste Link Google Sheet DPA:", placeholder="https://docs.google.com/spreadsheets/d/...")
+                st.caption("Pastikan akses link diatur ke: *Anyone with the link / Siapa saja yang memiliki link*")
+
+            # Fungsi Gaib Pengubah Link Google Sheet -> CSV
+            def konversi_link_gsheet(url):
+                if pd.isna(url) or str(url).strip() == "": return None
+                url = str(url).strip()
+                if "docs.google.com/spreadsheets" in url:
+                    import re
+                    match = re.search(r'/d/([a-zA-Z0-9-_]+)', url)
+                    if match:
+                        return f"https://docs.google.com/spreadsheets/d/{match.group(1)}/export?format=csv"
+                return None
+
             if st.button(f"🚀 PROSES & GABUNGKAN LINK DPA", type="primary", use_container_width=True, key="btn_tab3"):
-                if file_link is None:
+                
+                # Validasi apakah user sudah memasukkan file/link
+                if sumber_data_dpa == "📂 Upload File Lokal (Excel/CSV)" and file_link is None:
                     st.error("⚠️ Mohon upload file Excel/CSV Link DPA terlebih dahulu!")
+                elif sumber_data_dpa == "🌐 Link Google Sheet (Public)" and link_dpa_input == "":
+                    st.error("⚠️ Mohon paste Link Google Sheet terlebih dahulu!")
                 else:
-                    with st.spinner("Menjahit Link DPA dengan Data Anggaran..."):
-                        if file_link.name.endswith('.csv'):
-                            df_link = pd.read_csv(file_link)
-                        else:
-                            df_link = pd.read_excel(file_link)
+                    with st.spinner("Menyedot dan Menjahit Link DPA dengan Data Anggaran..."):
                         
-                        df_link.columns = df_link.columns.str.lower().str.strip()
-                        if 'kode sub' not in df_link.columns or 'url' not in df_link.columns:
-                            st.error("❌ Gagal! File upload tidak memiliki kolom bernama 'kode sub' atau 'url'.")
-                        else:
-                            df_link = df_link[['kode sub', 'url']].rename(columns={'kode sub': 'kode_sub_kegiatan'})
-                            df_link['kode_sub_kegiatan'] = df_link['kode_sub_kegiatan'].astype(str).str.strip()
-                            df_link['url'] = df_link['url'].fillna("")
-
-                            kumpulan_dpa = []
-                            def hitung_dpa(df_input, list_group, level_num):
-                                df_filter = df_input[df_input['tahapan'].isin([tahap_awal, tahap_akhir])]
-                                grouped = df_filter.groupby(list_group + ['tahapan'])['pagu'].sum().reset_index()
-                                pivot = grouped.pivot_table(index=list_group, columns='tahapan', values='pagu', aggfunc='sum', fill_value=0).reset_index()
-                                pivot['Level'] = level_num
-                                for t in [tahap_awal, tahap_akhir]:
-                                    if t not in pivot.columns:
-                                        pivot[t] = 0
-                                return pivot
-
-                            # ... (Proses hierarki DPA disingkat karena sama dengan sebelumnya, langsung lompat ke eksekusi l5) ...
-                            l1 = hitung_dpa(df_proses, ['kode_skpd', 'nama_skpd'], 1)
-                            l1['Kode'], l1['Uraian'], l1['Sort_Key'] = l1['kode_skpd'], l1['nama_skpd'], l1['kode_skpd']
-                            kumpulan_dpa.append(l1)
-
-                            df_l2 = df_proses[df_proses['kode_urusan'] != ""]
-                            if not df_l2.empty:
-                                l2 = hitung_dpa(df_l2, ['kode_skpd', 'kode_urusan', 'nama_urusan'], 2)
-                                l2['Kode'], l2['Uraian'], l2['Sort_Key'] = l2['kode_urusan'], l2['nama_urusan'], l2['kode_skpd'] + "|" + l2['kode_urusan']
-                                kumpulan_dpa.append(l2)
-
-                            df_l3 = df_proses[df_proses['kode_program'] != ""]
-                            if not df_l3.empty:
-                                l3 = hitung_dpa(df_l3, ['kode_skpd', 'kode_urusan', 'kode_program', 'nama_program'], 3)
-                                l3['Kode'], l3['Uraian'], l3['Sort_Key'] = l3['kode_program'], l3['nama_program'], l3['kode_skpd'] + "|" + l3['kode_urusan'] + "|" + l3['kode_program']
-                                kumpulan_dpa.append(l3)
-
-                            df_l4 = df_proses[df_proses['kode_kegiatan'] != ""]
-                            if not df_l4.empty:
-                                l4 = hitung_dpa(df_l4, ['kode_skpd', 'kode_urusan', 'kode_program', 'kode_kegiatan', 'nama_kegiatan'], 4)
-                                l4['Kode'], l4['Uraian'], l4['Sort_Key'] = l4['kode_kegiatan'], l4['nama_kegiatan'], l4['kode_skpd'] + "|" + l4['kode_urusan'] + "|" + l4['kode_program'] + "|" + l4['kode_kegiatan']
-                                kumpulan_dpa.append(l4)
-
-                            df_l5 = df_proses[df_proses['kode_sub_kegiatan'] != ""]
-                            if not df_l5.empty:
-                                l5 = hitung_dpa(df_l5, ['kode_skpd', 'kode_urusan', 'kode_program', 'kode_kegiatan', 'kode_sub_kegiatan', 'nama_sub_kegiatan'], 5)
-                                l5['Kode'], l5['Uraian'] = l5['kode_sub_kegiatan'], l5['nama_sub_kegiatan']
-                                l5['Sort_Key'] = l5['kode_skpd'] + "|" + l5['kode_urusan'] + "|" + l5['kode_program'] + "|" + l5['kode_kegiatan'] + "|" + l5['kode_sub_kegiatan']
-
-                                df_sd = df_proses[df_proses['tahapan'] == tahap_akhir]
-                                sd_grouped = df_sd[df_sd['pagu'] > 0].groupby(['kode_sub_kegiatan', 'nama_sumber_dana'])['pagu'].sum().reset_index()
-                                if not sd_grouped.empty:
-                                    sd_grouped['teks_sd'] = sd_grouped['nama_sumber_dana'] + " = Rp " + sd_grouped['pagu'].apply(lambda x: f"{int(x):,}").str.replace(',', '.') + " \n"
-                                    sd_final = sd_grouped.groupby('kode_sub_kegiatan')['teks_sd'].apply(lambda x: ''.join(x).strip()).reset_index()
-                                    sd_final.rename(columns={'teks_sd': 'Rincian Sumber Dana'}, inplace=True)
-                                    l5 = pd.merge(l5, sd_final, on='kode_sub_kegiatan', how='left')
-                                
-                                l5 = pd.merge(l5, df_link, on='kode_sub_kegiatan', how='left')
-                                l5.rename(columns={'url': 'Link DPA'}, inplace=True)
-                                kumpulan_dpa.append(l5)
-
-                            df_rekap_dpa = pd.concat(kumpulan_dpa, ignore_index=True)
-                            
-                            df_rekap_dpa['Anggaran Sebelum'] = df_rekap_dpa[tahap_awal] if tahap_awal in df_rekap_dpa.columns else 0
-                            df_rekap_dpa['Anggaran Sesudah'] = df_rekap_dpa[tahap_akhir] if tahap_akhir in df_rekap_dpa.columns else 0
-                            df_rekap_dpa['Selisih'] = df_rekap_dpa['Anggaran Sesudah'] - df_rekap_dpa['Anggaran Sebelum']
-                            
-                            for col in ['Rincian Sumber Dana', 'Link DPA']:
-                                if col not in df_rekap_dpa.columns:
-                                    df_rekap_dpa[col] = ""
-                                df_rekap_dpa[col] = df_rekap_dpa[col].fillna("")
-
-                            df_rekap_dpa = df_rekap_dpa.sort_values('Sort_Key').reset_index(drop=True)
-
-                            kolom_final_dpa = ['Link DPA', 'Kode', 'Uraian', 'Rincian Sumber Dana', 'Anggaran Sebelum', 'Anggaran Sesudah', 'Selisih', 'Level']
-                            df_hasil_dpa = df_rekap_dpa[kolom_final_dpa].copy()
-
-                            df_tampil_dpa = df_hasil_dpa.drop(columns=['Level'])
-                            
-                            st.success(f"✅ Integrasi Link DPA Berhasil!")
-                            st.dataframe(
-                                df_tampil_dpa, 
-                                use_container_width=True, 
-                                height=500,
-                                column_config={
-                                    "Link DPA": st.column_config.LinkColumn("Link DPA", display_text="🔗 Buka DPA"),
-                                    "Anggaran Sebelum": st.column_config.NumberColumn(format="%.0f"),
-                                    "Anggaran Sesudah": st.column_config.NumberColumn(format="%.0f"),
-                                    "Selisih": st.column_config.NumberColumn(format="%.0f")
-                                }
-                            )
-
-                            def format_excel_dpa(row):
-                                if pd.notna(row['Link DPA']) and str(row['Link DPA']).startswith("http"):
-                                    row['Link DPA'] = f'=HYPERLINK("{row["Link DPA"]}", "🔗 Buka DPA")'
+                        df_link = pd.DataFrame()
+                        
+                        # Proses membaca file atau link
+                        try:
+                            if sumber_data_dpa == "📂 Upload File Lokal (Excel/CSV)" and file_link is not None:
+                                if file_link.name.endswith('.csv'):
+                                    df_link = pd.read_csv(file_link)
                                 else:
-                                    row['Link DPA'] = ""
-                                return row
+                                    df_link = pd.read_excel(file_link)
+                            elif sumber_data_dpa == "🌐 Link Google Sheet (Public)" and link_dpa_input != "":
+                                url_csv = konversi_link_gsheet(link_dpa_input)
+                                if url_csv: 
+                                    df_link = pd.read_csv(url_csv)
+                                else:
+                                    st.error("❌ Link Google Sheet tidak valid.")
+                        except Exception as e:
+                            st.error(f"❌ Gagal menarik data DPA: {e}")
 
-                            df_excel_dpa = df_hasil_dpa.apply(format_excel_dpa, axis=1)
-
-                            # ... (Warna Excel DPA sama) ...
-                            def warna_baris_dpa(row):
-                                lvl = df_excel_dpa.loc[row.name, 'Level']
-                                if lvl == 1: return ['background-color: #ddebf7; font-weight: bold'] * len(row)
-                                if lvl == 2: return ['background-color: #fff2cc; font-weight: bold'] * len(row)
-                                if lvl == 3: return ['background-color: #fce4d6; font-weight: bold'] * len(row)
-                                if lvl == 4: return ['background-color: #e2efda; font-weight: bold'] * len(row)
-                                return [''] * len(row)
-
-                            import io
-                            output_dpa = io.BytesIO()
-                            with pd.ExcelWriter(output_dpa, engine='openpyxl') as writer:
-                                df_excel_dpa.drop(columns=['Level']).style.apply(warna_baris_dpa, axis=1).to_excel(writer, index=False, sheet_name=f'Integrasi_DPA')
-                            output_dpa.seek(0)
+                        # Jika berhasil ditarik, lanjut proses
+                        if not df_link.empty:
+                            df_link.columns = df_link.columns.astype(str).str.lower().str.strip()
                             
-                            st.download_button(
-                                label="📥 Download Excel (Link DPA)", 
-                                data=output_dpa, 
-                                file_name=f"Integrasi_DPA_{nama_file_export}_{tahun_pilihan}.xlsx", 
-                                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", 
-                                type="primary",
-                                key="dl_t3"
-                            )
+                            if 'kode sub' not in df_link.columns or 'url' not in df_link.columns:
+                                st.error("❌ Gagal! File/Link upload tidak memiliki kolom bernama 'kode sub' atau 'url'.")
+                            else:
+                                df_link = df_link[['kode sub', 'url']].rename(columns={'kode sub': 'kode_sub_kegiatan'})
+                                df_link['kode_sub_kegiatan'] = df_link['kode_sub_kegiatan'].astype(str).str.strip()
+                                df_link['url'] = df_link['url'].fillna("")
 
+                                kumpulan_dpa = []
+                                def hitung_dpa(df_input, list_group, level_num):
+                                    df_filter = df_input[df_input['tahapan'].isin([tahap_awal, tahap_akhir])]
+                                    grouped = df_filter.groupby(list_group + ['tahapan'])['pagu'].sum().reset_index()
+                                    pivot = grouped.pivot_table(index=list_group, columns='tahapan', values='pagu', aggfunc='sum', fill_value=0).reset_index()
+                                    pivot['Level'] = level_num
+                                    for t in [tahap_awal, tahap_akhir]:
+                                        if t not in pivot.columns:
+                                            pivot[t] = 0
+                                    return pivot
+
+                                # ... Hierarki DPA ...
+                                l1 = hitung_dpa(df_proses, ['kode_skpd', 'nama_skpd'], 1)
+                                l1['Kode'], l1['Uraian'], l1['Sort_Key'] = l1['kode_skpd'], l1['nama_skpd'], l1['kode_skpd']
+                                kumpulan_dpa.append(l1)
+
+                                df_l2 = df_proses[df_proses['kode_urusan'] != ""]
+                                if not df_l2.empty:
+                                    l2 = hitung_dpa(df_l2, ['kode_skpd', 'kode_urusan', 'nama_urusan'], 2)
+                                    l2['Kode'], l2['Uraian'], l2['Sort_Key'] = l2['kode_urusan'], l2['nama_urusan'], l2['kode_skpd'] + "|" + l2['kode_urusan']
+                                    kumpulan_dpa.append(l2)
+
+                                df_l3 = df_proses[df_proses['kode_program'] != ""]
+                                if not df_l3.empty:
+                                    l3 = hitung_dpa(df_l3, ['kode_skpd', 'kode_urusan', 'kode_program', 'nama_program'], 3)
+                                    l3['Kode'], l3['Uraian'], l3['Sort_Key'] = l3['kode_program'], l3['nama_program'], l3['kode_skpd'] + "|" + l3['kode_urusan'] + "|" + l3['kode_program']
+                                    kumpulan_dpa.append(l3)
+
+                                df_l4 = df_proses[df_proses['kode_kegiatan'] != ""]
+                                if not df_l4.empty:
+                                    l4 = hitung_dpa(df_l4, ['kode_skpd', 'kode_urusan', 'kode_program', 'kode_kegiatan', 'nama_kegiatan'], 4)
+                                    l4['Kode'], l4['Uraian'], l4['Sort_Key'] = l4['kode_kegiatan'], l4['nama_kegiatan'], l4['kode_skpd'] + "|" + l4['kode_urusan'] + "|" + l4['kode_program'] + "|" + l4['kode_kegiatan']
+                                    kumpulan_dpa.append(l4)
+
+                                df_l5 = df_proses[df_proses['kode_sub_kegiatan'] != ""]
+                                if not df_l5.empty:
+                                    l5 = hitung_dpa(df_l5, ['kode_skpd', 'kode_urusan', 'kode_program', 'kode_kegiatan', 'kode_sub_kegiatan', 'nama_sub_kegiatan'], 5)
+                                    l5['Kode'], l5['Uraian'] = l5['kode_sub_kegiatan'], l5['nama_sub_kegiatan']
+                                    l5['Sort_Key'] = l5['kode_skpd'] + "|" + l5['kode_urusan'] + "|" + l5['kode_program'] + "|" + l5['kode_kegiatan'] + "|" + l5['kode_sub_kegiatan']
+
+                                    df_sd = df_proses[df_proses['tahapan'] == tahap_akhir]
+                                    sd_grouped = df_sd[df_sd['pagu'] > 0].groupby(['kode_sub_kegiatan', 'nama_sumber_dana'])['pagu'].sum().reset_index()
+                                    if not sd_grouped.empty:
+                                        sd_grouped['teks_sd'] = sd_grouped['nama_sumber_dana'] + " = Rp " + sd_grouped['pagu'].apply(lambda x: f"{int(x):,}").str.replace(',', '.') + " \n"
+                                        sd_final = sd_grouped.groupby('kode_sub_kegiatan')['teks_sd'].apply(lambda x: ''.join(x).strip()).reset_index()
+                                        sd_final.rename(columns={'teks_sd': 'Rincian Sumber Dana'}, inplace=True)
+                                        l5 = pd.merge(l5, sd_final, on='kode_sub_kegiatan', how='left')
+                                    
+                                    l5 = pd.merge(l5, df_link, on='kode_sub_kegiatan', how='left')
+                                    l5.rename(columns={'url': 'Link DPA'}, inplace=True)
+                                    kumpulan_dpa.append(l5)
+
+                                df_rekap_dpa = pd.concat(kumpulan_dpa, ignore_index=True)
+                                
+                                df_rekap_dpa['Anggaran Sebelum'] = df_rekap_dpa[tahap_awal] if tahap_awal in df_rekap_dpa.columns else 0
+                                df_rekap_dpa['Anggaran Sesudah'] = df_rekap_dpa[tahap_akhir] if tahap_akhir in df_rekap_dpa.columns else 0
+                                df_rekap_dpa['Selisih'] = df_rekap_dpa['Anggaran Sesudah'] - df_rekap_dpa['Anggaran Sebelum']
+                                
+                                for col in ['Rincian Sumber Dana', 'Link DPA']:
+                                    if col not in df_rekap_dpa.columns:
+                                        df_rekap_dpa[col] = ""
+                                    df_rekap_dpa[col] = df_rekap_dpa[col].fillna("")
+
+                                df_rekap_dpa = df_rekap_dpa.sort_values('Sort_Key').reset_index(drop=True)
+
+                                kolom_final_dpa = ['Link DPA', 'Kode', 'Uraian', 'Rincian Sumber Dana', 'Anggaran Sebelum', 'Anggaran Sesudah', 'Selisih', 'Level']
+                                df_hasil_dpa = df_rekap_dpa[kolom_final_dpa].copy()
+
+                                df_tampil_dpa = df_hasil_dpa.drop(columns=['Level'])
+                                
+                                st.success(f"✅ Integrasi Link DPA Berhasil!")
+                                st.dataframe(
+                                    df_tampil_dpa, 
+                                    use_container_width=True, 
+                                    height=500,
+                                    column_config={
+                                        "Link DPA": st.column_config.LinkColumn("Link DPA", display_text="🔗 Buka DPA"),
+                                        "Anggaran Sebelum": st.column_config.NumberColumn(format="%.0f"),
+                                        "Anggaran Sesudah": st.column_config.NumberColumn(format="%.0f"),
+                                        "Selisih": st.column_config.NumberColumn(format="%.0f")
+                                    }
+                                )
+
+                                def format_excel_dpa(row):
+                                    if pd.notna(row['Link DPA']) and str(row['Link DPA']).startswith("http"):
+                                        row['Link DPA'] = f'=HYPERLINK("{row["Link DPA"]}", "🔗 Buka DPA")'
+                                    else:
+                                        row['Link DPA'] = ""
+                                    return row
+
+                                df_excel_dpa = df_hasil_dpa.apply(format_excel_dpa, axis=1)
+
+                                def warna_baris_dpa(row):
+                                    lvl = df_excel_dpa.loc[row.name, 'Level']
+                                    if lvl == 1: return ['background-color: #ddebf7; font-weight: bold'] * len(row)
+                                    if lvl == 2: return ['background-color: #fff2cc; font-weight: bold'] * len(row)
+                                    if lvl == 3: return ['background-color: #fce4d6; font-weight: bold'] * len(row)
+                                    if lvl == 4: return ['background-color: #e2efda; font-weight: bold'] * len(row)
+                                    return [''] * len(row)
+
+                                import io
+                                output_dpa = io.BytesIO()
+                                with pd.ExcelWriter(output_dpa, engine='openpyxl') as writer:
+                                    df_excel_dpa.drop(columns=['Level']).style.apply(warna_baris_dpa, axis=1).to_excel(writer, index=False, sheet_name=f'Integrasi_DPA')
+                                output_dpa.seek(0)
+                                
+                                st.download_button(
+                                    label="📥 Download Excel (Link DPA)", 
+                                    data=output_dpa, 
+                                    file_name=f"Integrasi_DPA_{nama_file_export}_{tahun_pilihan}.xlsx", 
+                                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", 
+                                    type="primary",
+                                    key="dl_t3"
+                                )
         # -------------------------------------------------------------------
         # TAB 4: EVALUASI KINERJA & REALISASI (HYBRID DENGAN PEMBERSIH ANGKA)
         # -------------------------------------------------------------------
@@ -882,6 +923,7 @@ elif menu_pilihan == "Rekap SIPD":
                             type="primary",
                             key="dl_t4"
                         )
+
 
 
 
