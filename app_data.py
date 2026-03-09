@@ -141,7 +141,7 @@ if menu_pilihan == "Alat Excel":
                         st.error(f"❌ Terjadi kesalahan: {e}")
 
 # -------------------------------------------------------------------------
-# --- MODUL 2: IMPORT DATA SIPD & MANAJEMEN DATABASE ---
+# --- MODUL 2: IMPORT DATA SIPD & MANAJEMEN DATABASE (VERSI ULTIMATE) ---
 # -------------------------------------------------------------------------
 elif menu_pilihan == "Import SIPD":
     st.title("📥 Import & Manajemen Data SIPD")
@@ -150,11 +150,9 @@ elif menu_pilihan == "Import SIPD":
     # --- BAGIAN A: IMPORT DATA ---
     st.markdown("### ➕ Tambah Data Baru")
     with st.form("form_import"):
-        st.info("💡 Tahun anggaran akan ditarik otomatis dari file. Anda cukup mengetik Nama Tahapan.")
+        st.info("💡 Tahun anggaran ditarik otomatis dari file. Anda cukup mengetik Nama Tahapan.")
         
-        # Cukup 1 inputan untuk Tahapan
         tahapan_input = st.text_input("🏷️ Nama Tahapan", placeholder="Ketik Tahapan... (Contoh: Pergeseran 3, Murni, dll)")
-        
         file_upload = st.file_uploader("📂 Pilih File Excel / CSV (Termasuk file Backup)", type=["xlsx", "xls", "csv"])
         
         submit_import = st.form_submit_button("🚀 Upload & Simpan ke Database")
@@ -173,23 +171,56 @@ elif menu_pilihan == "Import SIPD":
                     else:
                         df = pd.read_excel(file_upload)
                     
-                    # Rapikan nama kolom (huruf kecil semua, hilangkan spasi berlebih)
-                    df.columns = df.columns.astype(str).str.lower().str.strip()
+                    # Bersihkan spasi di nama header agar pemetaan tidak meleset
+                    df.columns = df.columns.astype(str).str.strip()
 
-                    # 2. Validasi: Pastikan kolom 'tahun' benar-benar ada di dalam file
+                    # 2. PEMETAAN KOLOM (Menggunakan racikan asli Anda)
+                    pemetaan_kolom = {
+                        "NO": "no_urut",
+                        "TAHUN": "tahun",
+                        "KODE URUSAN": "kode_urusan",
+                        "NAMA URUSAN": "nama_urusan",
+                        "KODE SKPD": "kode_skpd",
+                        "NAMA SKPD": "nama_skpd",
+                        "KODE SUB UNIT": "kode_sub_unit",
+                        "NAMA SUB UNIT": "nama_sub_unit",
+                        "KODE BIDANG URUSAN": "kode_bidang_urusan",
+                        "NAMA BIDANG URUSAN": "nama_bidang_urusan",
+                        "KODE PROGRAM": "kode_program",
+                        "NAMA PROGRAM": "nama_program",
+                        "KODE KEGIATAN": "kode_kegiatan",
+                        "NAMA KEGIATAN": "nama_kegiatan",
+                        "KODE SUB KEGIATAN": "kode_sub_kegiatan",
+                        "NAMA SUB KEGIATAN": "nama_sub_kegiatan",
+                        "KODE SUMBER DANA": "kode_sumber_dana",
+                        "NAMA SUMBER DANA": "nama_sumber_dana",
+                        "KODE REKENING": "kode_rekening",
+                        "NAMA REKENING": "nama_rekening",
+                        "PAKET/KELOMPOK": "paket_kelompok",
+                        "NAMA PAKET/KELOMPOK": "nama_paket_kelompok",
+                        "PAGU": "pagu"
+                    }
+                    # Lakukan rename sesuai kamus pemetaan (hanya ngefek kalau header asli Excel/SIPD)
+                    df.rename(columns=pemetaan_kolom, inplace=True)
+                    
+                    # Pastikan semua header jadi huruf kecil (buat jaga-jaga kalau file backup)
+                    df.columns = df.columns.str.lower()
+
+                    # 3. Validasi keberadaan kolom 'tahun'
                     if 'tahun' not in df.columns:
-                        st.error("❌ Gagal: Kolom 'tahun' tidak ditemukan di dalam file Excel/CSV yang Anda unggah. Pastikan format file sudah benar.")
+                        st.error("❌ Gagal: Kolom 'TAHUN' tidak ditemukan di dalam file. Pastikan format file dari SIPD sudah benar.")
                     else:
-                        # 3. Jika ini file Backup, amankan bentrok ID
+                        # Jika ini file Backup, amankan bentrok ID
                         if 'id' in df.columns:
                             df = df.drop(columns=['id'])
                         if 'created_at' in df.columns:
                             df = df.drop(columns=['created_at'])
                         
-                        # 4. Masukkan Nama Tahapan dari inputan ke dalam dataframe
+                        # Tambahkan kolom tahapan dari inputan user
                         df['tahapan'] = tahapan_input
-
-                        df = df.where(pd.notna(df), None)
+                        
+                        # 4. PEMBERSIH NaN TINGKAT DEWA (Dari kode lama Anda)
+                        df = df.astype(object).where(pd.notnull(df), None)
                         
                         # 5. Insert Batch ke Supabase
                         data_insert = df.to_dict(orient='records')
@@ -198,7 +229,7 @@ elif menu_pilihan == "Import SIPD":
                             batch = data_insert[i:i+batch_size]
                             supabase.table("rekap_sipd").insert(batch).execute()
                             
-                        st.success(f"✅ Selesai! {len(df)} baris data '{tahapan_input}' berhasil masuk ke database.")
+                        st.success(f"✅ LUAR BIASA! {len(df)} baris data '{tahapan_input}' berhasil mendarat dengan selamat di Database Supabase!")
                         time.sleep(1)
                         st.rerun() # Refresh agar dropdown hapus di bawah otomatis terupdate
                 
@@ -257,7 +288,7 @@ elif menu_pilihan == "Import SIPD":
                 unique_years = sorted(df_opsi['tahun'].dropna().unique().tolist())
                 unique_tahapan = sorted(df_opsi['tahapan'].dropna().unique().tolist())
         except Exception as e:
-            pass # Abaikan error jika database kosong/gagal baca
+            pass
 
         if not unique_years or not unique_tahapan:
             st.info("Database masih kosong, belum ada data yang bisa dihapus.")
@@ -845,6 +876,7 @@ elif menu_pilihan == "Rekap SIPD":
                             type="primary",
                             key="dl_t4"
                         )
+
 
 
 
