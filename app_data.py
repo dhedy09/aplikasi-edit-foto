@@ -949,25 +949,25 @@ elif menu_pilihan == "Rekap SIPD":
 
 
         # -------------------------------------------------------------------
-        # TAB 5: REKAPITULASI PER BIDANG (HYBRID - LOKAL & GOOGLE SHEET)
+        # TAB 5: REKAPITULASI PER BIDANG/PPTK (HYBRID - LOKAL & GOOGLE SHEET)
         # -------------------------------------------------------------------
         with tab5:
-            st.info(f"💡 Menampilkan total pagu per Bidang Internal (berdasarkan file pemetaan): **{tahap_awal}** vs **{tahap_akhir}**")
+            st.info(f"💡 Menampilkan total pagu per Bidang/PPTK (berdasarkan file pemetaan): **{tahap_awal}** vs **{tahap_akhir}**")
             
             # Pilihan Mode Input persis seperti di Tab 3
-            sumber_data_bidang = st.radio("Pilih Mode Input File Pemetaan Bidang:", ["📂 Upload File Lokal (Excel/CSV)", "🌐 Link Google Sheet (Otomatis Baca Sheet)"], horizontal=True, key="radio_bidang_t5")
+            sumber_data_bidang = st.radio("Pilih Mode Input File Pemetaan PPTK/Bidang:", ["📂 Upload File Lokal (Excel/CSV)", "🌐 Link Google Sheet (Otomatis Baca Sheet)"], horizontal=True, key="radio_bidang_t5")
             
             file_mapping_bidang = None
             link_bidang_input = ""
             df_map_gsheet = pd.DataFrame()
             
             if sumber_data_bidang == "📂 Upload File Lokal (Excel/CSV)":
-                file_mapping_bidang = st.file_uploader("📂 Upload File Excel Pemetaan Bidang (Pastikan ada kolom 'kode sub' dan 'bidang')", type=["xlsx", "xls", "csv"], key="up_bidang_t5")
+                file_mapping_bidang = st.file_uploader("📂 Upload File Excel Pemetaan (Pastikan ada kolom 'kode sub' dan 'penanggung jawab')", type=["xlsx", "xls", "csv"], key="up_bidang_t5")
             else:
-                link_bidang_input = st.text_input("🔗 Paste Link Google Sheet Pemetaan Bidang:", placeholder="https://docs.google.com/spreadsheets/d/...", key="link_bidang_t5")
+                link_bidang_input = st.text_input("🔗 Paste Link Google Sheet Pemetaan:", placeholder="https://docs.google.com/spreadsheets/d/...", key="link_bidang_t5")
                 st.caption("Gunakan link Share biasa. Pastikan akses diatur ke: *Anyone with the link*")
                 
-                # --- LOGIKA AJAIB PENDETEKSI SHEET (Sama dengan Tab 3) ---
+                # --- LOGIKA AJAIB PENDETEKSI SHEET ---
                 if link_bidang_input:
                     match = re.search(r'/d/([a-zA-Z0-9-_]+)', link_bidang_input)
                     if match:
@@ -987,7 +987,7 @@ elif menu_pilihan == "Rekap SIPD":
                                 daftar_sheet = xls.sheet_names
                                 
                             if daftar_sheet:
-                                sheet_pilihan = st.selectbox("📑 Pilih Tab (Sheet) yang berisi data Bidang:", daftar_sheet, key="sheet_bidang_t5")
+                                sheet_pilihan = st.selectbox("📑 Pilih Tab (Sheet) yang berisi data PPTK/Bidang:", daftar_sheet, key="sheet_bidang_t5")
                                 if sheet_pilihan:
                                     df_map_gsheet = pd.read_excel(xls, sheet_name=sheet_pilihan)
                             else:
@@ -1008,7 +1008,7 @@ elif menu_pilihan == "Rekap SIPD":
                 elif sumber_data_bidang == "🌐 Link Google Sheet (Otomatis Baca Sheet)" and df_map_gsheet.empty:
                     st.error("⚠️ Menunggu data dari Google Sheet. Silakan pilih Tahapan (Sheet) yang benar.")
                 else:
-                    with st.spinner("Menyatukan data SIPD dengan pemetaan Bidang..."):
+                    with st.spinner("Menyatukan data SIPD dengan pemetaan PPTK/Bidang..."):
                         try:
                             # 1. Siapkan DataFrame sesuai sumber
                             if sumber_data_bidang == "📂 Upload File Lokal (Excel/CSV)":
@@ -1021,39 +1021,39 @@ elif menu_pilihan == "Rekap SIPD":
 
                             df_map.columns = df_map.columns.astype(str).str.lower().str.strip()
                             
-                            # ✨ MAGIC AUTO-RENAME (Jaga-jaga kalau nama kolomnya beda sedikit)
-                            if 'nama bidang' in df_map.columns:
-                                df_map.rename(columns={'nama bidang': 'bidang'}, inplace=True)
+                            # ✨ MAGIC AUTO-RENAME untuk jaga-jaga
                             if 'code' in df_map.columns:
                                 df_map.rename(columns={'code': 'kode sub'}, inplace=True)
+                            if 'bidang' in df_map.columns:
+                                df_map.rename(columns={'bidang': 'penanggung jawab'}, inplace=True)
                             
-                            # Cek kolom wajib
-                            if 'kode sub' not in df_map.columns or 'bidang' not in df_map.columns:
-                                st.error(f"❌ Ralat! File pemetaan harus memiliki kolom 'kode sub' dan 'bidang'. Kolom yang terdeteksi: {list(df_map.columns)}")
+                            # Cek kolom wajib (SUDAH DIKOREKSI)
+                            if 'kode sub' not in df_map.columns or 'penanggung jawab' not in df_map.columns:
+                                st.error(f"❌ Ralat! File pemetaan harus memiliki kolom 'kode sub' dan 'penanggung jawab'. Kolom yang terdeteksi: {list(df_map.columns)}")
                             else:
                                 # Bersihkan data pemetaan
-                                df_map = df_map[['kode sub', 'bidang']].rename(columns={'kode sub': 'kode_sub_kegiatan'})
+                                df_map = df_map[['kode sub', 'penanggung jawab']].rename(columns={'kode sub': 'kode_sub_kegiatan'})
                                 df_map['kode_sub_kegiatan'] = df_map['kode_sub_kegiatan'].astype(str).str.strip()
-                                df_map['bidang'] = df_map['bidang'].fillna("TIDAK ADA BIDANG")
+                                df_map['penanggung jawab'] = df_map['penanggung jawab'].fillna("TIDAK ADA DATA")
                                 
-                                # Buang duplikasi jika ada kode sub yang ditulis berulang dalam file mapping
+                                # Buang duplikasi
                                 df_map = df_map.drop_duplicates(subset=['kode_sub_kegiatan'])
                                 
-                                # 2. Filter data SIPD hanya untuk tahap awal dan tahap akhir
+                                # 2. Filter data SIPD
                                 df_sipd_filter = df_proses[df_proses['tahapan'].isin([tahap_awal, tahap_akhir])].copy()
                                 
-                                # 3. GABUNGKAN (VLOOKUP) Data SIPD dengan Pemetaan Bidang
+                                # 3. GABUNGKAN (VLOOKUP) Data SIPD
                                 df_gabung = pd.merge(df_sipd_filter, df_map, on='kode_sub_kegiatan', how='left')
                                 
-                                # Jika ada sub kegiatan dalam SIPD yang tidak tersenarai di file mapping
-                                df_gabung['bidang'] = df_gabung['bidang'].fillna("TIDAK DIPETAKAN (Belum masuk file pemetaan)")
+                                # Jika ada sub kegiatan dalam SIPD yang tidak tersenarai
+                                df_gabung['penanggung jawab'] = df_gabung['penanggung jawab'].fillna("TIDAK DIPETAKAN")
                                 
-                                # 4. GROUP BY (Fungsi SUMIFS berdasarkan 'bidang')
-                                rekap_bidang = df_gabung.groupby(['bidang', 'tahapan'])['pagu'].sum().reset_index()
+                                # 4. GROUP BY (Fungsi SUMIFS berdasarkan 'penanggung jawab')
+                                rekap_bidang = df_gabung.groupby(['penanggung jawab', 'tahapan'])['pagu'].sum().reset_index()
                                 
-                                # 5. PIVOT (Jadikan tahapan sebagai kolom menyamping)
+                                # 5. PIVOT
                                 pivot_bidang = rekap_bidang.pivot_table(
-                                    index='bidang', 
+                                    index='penanggung jawab', 
                                     columns='tahapan', 
                                     values='pagu', 
                                     aggfunc='sum', 
@@ -1068,9 +1068,9 @@ elif menu_pilihan == "Rekap SIPD":
                                 # 6. Hitung Selisih
                                 pivot_bidang['Selisih'] = pivot_bidang[tahap_akhir] - pivot_bidang[tahap_awal]
                                 
-                                # Ganti nama kolom untuk paparan supaya lebih rapi
+                                # Ganti nama kolom untuk paparan
                                 pivot_bidang.rename(columns={
-                                    'bidang': 'Nama Bidang (Internal)',
+                                    'penanggung jawab': 'Penanggung Jawab / Bidang',
                                     tahap_awal: f'Pagu {tahap_awal}',
                                     tahap_akhir: f'Pagu {tahap_akhir}'
                                 }, inplace=True)
