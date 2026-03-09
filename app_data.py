@@ -600,7 +600,7 @@ elif menu_pilihan == "Rekap SIPD":
                             )
 
         # -------------------------------------------------------------------
-        # TAB 4: EVALUASI KINERJA & REALISASI (HYBRID: LOKAL & CLOUD)
+        # TAB 4: EVALUASI KINERJA & REALISASI (HYBRID DENGAN PEMBERSIH ANGKA)
         # -------------------------------------------------------------------
         with tab4:
             st.info(f"💡 Patokan Pagu Anggaran menggunakan Tahapan: **{tahap_akhir}**. Anda bisa mengosongkan salah satu input jika tidak tersedia.")
@@ -674,7 +674,13 @@ elif menu_pilihan == "Rekap SIPD":
                             df_real.columns = df_real.columns.astype(str).str.lower().str.strip()
                             if 'kode sub' in df_real.columns and 'realisasi' in df_real.columns:
                                 df_real['key_merge'] = df_real['kode sub'].astype(str).str.replace(r'[^0-9.]', '', regex=True)
-                                df_real['Realisasi'] = pd.to_numeric(df_real['realisasi'], errors='coerce').fillna(0)
+                                
+                                # --- KUNCI PERBAIKAN: PEMBERSIH FORMAT ANGKA ---
+                                # Hapus huruf, titik (pemisah ribuan), Rp, dan spasi. (Koma dibiarkan sebagai desimal)
+                                angka_bersih = df_real['realisasi'].astype(str).str.replace(r'[Rp\s\.]', '', regex=True).str.replace(',', '.')
+                                df_real['Realisasi'] = pd.to_numeric(angka_bersih, errors='coerce').fillna(0)
+                                # -----------------------------------------------
+
                                 df_real = df_real.groupby('key_merge')['Realisasi'].sum().reset_index()
                                 df_base = pd.merge(df_base, df_real, on='key_merge', how='left')
                                 df_base['Realisasi'] = df_base['Realisasi'].fillna(0)
