@@ -600,7 +600,7 @@ elif menu_pilihan == "Rekap SIPD":
                             )
 
         # -------------------------------------------------------------------
-        # TAB 4: EVALUASI KINERJA & REALISASI (PERBAIKAN MERGE)
+        # TAB 4: EVALUASI KINERJA & REALISASI (ULTIMATE MATCH)
         # -------------------------------------------------------------------
         with tab4:
             st.info(f"💡 Patokan Pagu Anggaran menggunakan Tahapan: **{tahap_akhir}**. Anda bisa mengosongkan salah satu *upload* jika tidak tersedia.")
@@ -614,20 +614,19 @@ elif menu_pilihan == "Rekap SIPD":
                 file_pptk = st.file_uploader("Upload Excel (Kolom wajib: 'kode sub', 'penanggung jawab')", type=["xlsx", "xls", "csv"], key="up_pptk")
 
             if st.button("🚀 PROSES EVALUASI REALISASI", type="primary", use_container_width=True, key="btn_tab4"):
-                with st.spinner("Memproses sinkronisasi dan menjahit data realisasi..."):
+                with st.spinner("Menjahit data dengan pembersih karakter gaib..."):
                     
-                    # 1. Tarik Data Dasar (Pagu Tahap Akhir)
                     df_eval = df_proses[df_proses['tahapan'] == tahap_akhir].copy()
                     
                     if df_eval.empty:
                         st.error(f"⚠️ Tidak ada data anggaran untuk tahapan {tahap_akhir}.")
                     else:
-                        # Kelompokkan ke Level Sub Kegiatan
+                        # 1. Tarik Data Dasar
                         df_base = df_eval.groupby(['kode_sub_kegiatan', 'nama_sub_kegiatan'])['pagu'].sum().reset_index()
                         df_base.rename(columns={'kode_sub_kegiatan': 'Kode Sub', 'nama_sub_kegiatan': 'Uraian Sub Kegiatan', 'pagu': 'Pagu Anggaran'}, inplace=True)
                         
-                        # KUNCI PERBAIKAN 1: Cuci spasi tersembunyi dari Database!
-                        df_base['Kode Sub'] = df_base['Kode Sub'].astype(str).str.strip()
+                        # KUNCI 100% MATCH: Buat kolom rahasia 'key_merge' yg hanya berisi angka dan titik
+                        df_base['key_merge'] = df_base['Kode Sub'].astype(str).str.replace(r'[^0-9.]', '', regex=True)
                         
                         # 2. Proses File Realisasi
                         if file_realisasi is not None:
@@ -638,17 +637,17 @@ elif menu_pilihan == "Rekap SIPD":
                                 
                             df_real.columns = df_real.columns.astype(str).str.lower().str.strip()
                             if 'kode sub' in df_real.columns and 'realisasi' in df_real.columns:
-                                df_real = df_real[['kode sub', 'realisasi']].rename(columns={'kode sub': 'Kode Sub', 'realisasi': 'Realisasi'})
-                                df_real['Kode Sub'] = df_real['Kode Sub'].astype(str).str.strip()
-                                df_real['Realisasi'] = pd.to_numeric(df_real['Realisasi'], errors='coerce').fillna(0)
+                                df_real['key_merge'] = df_real['kode sub'].astype(str).str.replace(r'[^0-9.]', '', regex=True)
+                                df_real['Realisasi'] = pd.to_numeric(df_real['realisasi'], errors='coerce').fillna(0)
                                 
-                                # Cegah error jika ada duplikat kode di excel realisasi (kita jumlahkan)
-                                df_real = df_real.groupby('Kode Sub')['Realisasi'].sum().reset_index()
+                                # Cegah duplikat
+                                df_real = df_real.groupby('key_merge')['Realisasi'].sum().reset_index()
                                 
-                                df_base = pd.merge(df_base, df_real, on='Kode Sub', how='left')
+                                # Gabungkan berdasarkan 'key_merge'
+                                df_base = pd.merge(df_base, df_real, on='key_merge', how='left')
                                 df_base['Realisasi'] = df_base['Realisasi'].fillna(0)
                             else:
-                                st.warning("⚠️ Kolom 'kode sub' atau 'realisasi' tidak ditemukan. Realisasi di-set Rp 0.")
+                                st.warning("⚠️ Kolom 'kode sub' atau 'realisasi' tidak ditemukan.")
                                 df_base['Realisasi'] = 0
                         else:
                             df_base['Realisasi'] = 0
@@ -662,19 +661,18 @@ elif menu_pilihan == "Rekap SIPD":
                                 
                             df_pj.columns = df_pj.columns.astype(str).str.lower().str.strip()
                             if 'kode sub' in df_pj.columns and 'penanggung jawab' in df_pj.columns:
-                                df_pj = df_pj[['kode sub', 'penanggung jawab']].rename(columns={'kode sub': 'Kode Sub', 'penanggung jawab': 'Penanggung Jawab'})
+                                df_pj['key_merge'] = df_pj['kode sub'].astype(str).str.replace(r'[^0-9.]', '', regex=True)
+                                df_pj['Penanggung Jawab'] = df_pj['penanggung jawab'].astype(str).replace(['nan', 'NaN', 'None', ''], 'BELUM DIPETAKAN')
                                 
-                                # KUNCI PERBAIKAN 2: Cuci spasi tersembunyi dari Excel dan hapus baris ganda
-                                df_pj['Kode Sub'] = df_pj['Kode Sub'].astype(str).str.strip()
-                                df_pj = df_pj.drop_duplicates(subset=['Kode Sub'])
+                                # Buang duplikat di file PPTK
+                                df_pj = df_pj.drop_duplicates(subset=['key_merge'])
+                                df_pj = df_pj[['key_merge', 'Penanggung Jawab']]
                                 
-                                df_base = pd.merge(df_base, df_pj, on='Kode Sub', how='left')
-                                
-                                # Pastikan formatnya bersih jika data dari excel kosong/null
-                                df_base['Penanggung Jawab'] = df_base['Penanggung Jawab'].astype(str).replace(['nan', 'NaN', 'None', ''], 'BELUM DIPETAKAN')
+                                # Gabungkan berdasarkan 'key_merge'
+                                df_base = pd.merge(df_base, df_pj, on='key_merge', how='left')
                                 df_base['Penanggung Jawab'] = df_base['Penanggung Jawab'].fillna("BELUM DIPETAKAN")
                             else:
-                                st.warning("⚠️ Kolom 'kode sub' atau 'penanggung jawab' tidak ditemukan. Di-set 'BELUM DIPETAKAN'.")
+                                st.warning("⚠️ Kolom 'kode sub' atau 'penanggung jawab' tidak ditemukan.")
                                 df_base['Penanggung Jawab'] = "BELUM DIPETAKAN"
                         else:
                             df_base['Penanggung Jawab'] = "BELUM DIPETAKAN"
@@ -683,7 +681,7 @@ elif menu_pilihan == "Rekap SIPD":
                         df_base['Sisa Anggaran'] = df_base['Pagu Anggaran'] - df_base['Realisasi']
                         df_base['% Capaian'] = (df_base['Realisasi'] / df_base['Pagu Anggaran'].replace(0, pd.NA)).fillna(0) * 100
 
-                        # 5. Pengurutan & Penyusunan Kolom
+                        # 5. Pengurutan & Penyusunan Kolom (Buang kolom rahasia 'key_merge')
                         df_base = df_base.sort_values(by=['Penanggung Jawab', 'Kode Sub']).reset_index(drop=True)
                         kolom_urut = ['Kode Sub', 'Uraian Sub Kegiatan', 'Pagu Anggaran', 'Realisasi', 'Sisa Anggaran', '% Capaian', 'Penanggung Jawab']
                         df_final_eval = df_base[kolom_urut]
@@ -723,6 +721,7 @@ elif menu_pilihan == "Rekap SIPD":
                             type="primary",
                             key="dl_t4"
                         )
+
 
 
 
