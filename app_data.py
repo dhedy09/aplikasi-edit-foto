@@ -600,21 +600,52 @@ elif menu_pilihan == "Rekap SIPD":
                             )
 
         # -------------------------------------------------------------------
-        # TAB 4: EVALUASI KINERJA & REALISASI (ULTIMATE MATCH)
+        # TAB 4: EVALUASI KINERJA & REALISASI (HYBRID: LOKAL & CLOUD)
         # -------------------------------------------------------------------
         with tab4:
-            st.info(f"💡 Patokan Pagu Anggaran menggunakan Tahapan: **{tahap_akhir}**. Anda bisa mengosongkan salah satu *upload* jika tidak tersedia.")
+            st.info(f"💡 Patokan Pagu Anggaran menggunakan Tahapan: **{tahap_akhir}**. Anda bisa mengosongkan salah satu input jika tidak tersedia.")
+            
+            # Pilihan Mode Input (Hybrid)
+            sumber_data = st.radio("Pilih Mode Input Data:", ["📂 Upload File Lokal (Excel/CSV)", "🌐 Link Google Sheet (Public)"], horizontal=True)
+            
+            file_realisasi = None
+            file_pptk = None
+            link_realisasi = ""
+            link_pptk = ""
             
             col_up1, col_up2 = st.columns(2)
-            with col_up1:
-                st.markdown("**1️⃣ Data Realisasi Keuangan**")
-                file_realisasi = st.file_uploader("Upload Excel (Kolom wajib: 'kode sub', 'realisasi')", type=["xlsx", "xls", "csv"], key="up_realisasi")
-            with col_up2:
-                st.markdown("**2️⃣ Master Bidang / PPTK**")
-                file_pptk = st.file_uploader("Upload Excel (Kolom wajib: 'kode sub', 'penanggung jawab')", type=["xlsx", "xls", "csv"], key="up_pptk")
+            
+            # Tampilan Form Berdasarkan Mode Pilihan
+            if sumber_data == "📂 Upload File Lokal (Excel/CSV)":
+                with col_up1:
+                    st.markdown("**1️⃣ Data Realisasi Keuangan**")
+                    file_realisasi = st.file_uploader("Upload Excel (Kolom wajib: 'kode sub', 'realisasi')", type=["xlsx", "xls", "csv"], key="up_realisasi")
+                with col_up2:
+                    st.markdown("**2️⃣ Master Bidang / PPTK**")
+                    file_pptk = st.file_uploader("Upload Excel (Kolom wajib: 'kode sub', 'penanggung jawab')", type=["xlsx", "xls", "csv"], key="up_pptk")
+            else:
+                with col_up1:
+                    st.markdown("**1️⃣ Data Realisasi Keuangan**")
+                    link_realisasi = st.text_input("🔗 Paste Link Google Sheet Realisasi:", placeholder="https://docs.google.com/spreadsheets/d/...")
+                    st.caption("Pastikan akses link diatur ke: *Anyone with the link / Siapa saja yang memiliki link*")
+                with col_up2:
+                    st.markdown("**2️⃣ Master Bidang / PPTK**")
+                    link_pptk = st.text_input("🔗 Paste Link Google Sheet Master Bidang:", placeholder="https://docs.google.com/spreadsheets/d/...")
+                    st.caption("Pastikan akses link diatur ke: *Anyone with the link / Siapa saja yang memiliki link*")
+
+            # Fungsi Gaib Pengubah Link Google Sheet -> CSV
+            def konversi_link_gsheet(url):
+                if pd.isna(url) or str(url).strip() == "": return None
+                url = str(url).strip()
+                if "docs.google.com/spreadsheets" in url:
+                    import re
+                    match = re.search(r'/d/([a-zA-Z0-9-_]+)', url)
+                    if match:
+                        return f"https://docs.google.com/spreadsheets/d/{match.group(1)}/export?format=csv"
+                return None
 
             if st.button("🚀 PROSES EVALUASI REALISASI", type="primary", use_container_width=True, key="btn_tab4"):
-                with st.spinner("Menjahit data dengan pembersih karakter gaib..."):
+                with st.spinner("Menyedot data dan menjahit dengan pembersih karakter..."):
                     
                     df_eval = df_proses[df_proses['tahapan'] == tahap_akhir].copy()
                     
@@ -625,54 +656,56 @@ elif menu_pilihan == "Rekap SIPD":
                         df_base = df_eval.groupby(['kode_sub_kegiatan', 'nama_sub_kegiatan'])['pagu'].sum().reset_index()
                         df_base.rename(columns={'kode_sub_kegiatan': 'Kode Sub', 'nama_sub_kegiatan': 'Uraian Sub Kegiatan', 'pagu': 'Pagu Anggaran'}, inplace=True)
                         
-                        # KUNCI 100% MATCH: Buat kolom rahasia 'key_merge' yg hanya berisi angka dan titik
+                        # Kolom rahasia pembersih karakter gaib
                         df_base['key_merge'] = df_base['Kode Sub'].astype(str).str.replace(r'[^0-9.]', '', regex=True)
                         
-                        # 2. Proses File Realisasi
-                        if file_realisasi is not None:
-                            if file_realisasi.name.endswith('.csv'):
-                                df_real = pd.read_csv(file_realisasi)
-                            else:
-                                df_real = pd.read_excel(file_realisasi)
-                                
+                        # 2. Proses File/Link Realisasi
+                        df_real = pd.DataFrame()
+                        try:
+                            if sumber_data == "📂 Upload File Lokal (Excel/CSV)" and file_realisasi is not None:
+                                df_real = pd.read_csv(file_realisasi) if file_realisasi.name.endswith('.csv') else pd.read_excel(file_realisasi)
+                            elif sumber_data == "🌐 Link Google Sheet (Public)" and link_realisasi != "":
+                                url_csv = konversi_link_gsheet(link_realisasi)
+                                if url_csv: df_real = pd.read_csv(url_csv)
+                        except Exception as e:
+                            st.error(f"❌ Gagal menarik data Realisasi: {e}")
+
+                        if not df_real.empty:
                             df_real.columns = df_real.columns.astype(str).str.lower().str.strip()
                             if 'kode sub' in df_real.columns and 'realisasi' in df_real.columns:
                                 df_real['key_merge'] = df_real['kode sub'].astype(str).str.replace(r'[^0-9.]', '', regex=True)
                                 df_real['Realisasi'] = pd.to_numeric(df_real['realisasi'], errors='coerce').fillna(0)
-                                
-                                # Cegah duplikat
                                 df_real = df_real.groupby('key_merge')['Realisasi'].sum().reset_index()
-                                
-                                # Gabungkan berdasarkan 'key_merge'
                                 df_base = pd.merge(df_base, df_real, on='key_merge', how='left')
                                 df_base['Realisasi'] = df_base['Realisasi'].fillna(0)
                             else:
-                                st.warning("⚠️ Kolom 'kode sub' atau 'realisasi' tidak ditemukan.")
+                                st.warning("⚠️ Kolom 'kode sub' atau 'realisasi' tidak ditemukan di data Realisasi.")
                                 df_base['Realisasi'] = 0
                         else:
                             df_base['Realisasi'] = 0
 
-                        # 3. Proses File Master Bidang / PPTK
-                        if file_pptk is not None:
-                            if file_pptk.name.endswith('.csv'):
-                                df_pj = pd.read_csv(file_pptk)
-                            else:
-                                df_pj = pd.read_excel(file_pptk)
-                                
+                        # 3. Proses File/Link Master Bidang / PPTK
+                        df_pj = pd.DataFrame()
+                        try:
+                            if sumber_data == "📂 Upload File Lokal (Excel/CSV)" and file_pptk is not None:
+                                df_pj = pd.read_csv(file_pptk) if file_pptk.name.endswith('.csv') else pd.read_excel(file_pptk)
+                            elif sumber_data == "🌐 Link Google Sheet (Public)" and link_pptk != "":
+                                url_csv = konversi_link_gsheet(link_pptk)
+                                if url_csv: df_pj = pd.read_csv(url_csv)
+                        except Exception as e:
+                            st.error(f"❌ Gagal menarik data Master Bidang: {e}")
+
+                        if not df_pj.empty:
                             df_pj.columns = df_pj.columns.astype(str).str.lower().str.strip()
                             if 'kode sub' in df_pj.columns and 'penanggung jawab' in df_pj.columns:
                                 df_pj['key_merge'] = df_pj['kode sub'].astype(str).str.replace(r'[^0-9.]', '', regex=True)
                                 df_pj['Penanggung Jawab'] = df_pj['penanggung jawab'].astype(str).replace(['nan', 'NaN', 'None', ''], 'BELUM DIPETAKAN')
-                                
-                                # Buang duplikat di file PPTK
                                 df_pj = df_pj.drop_duplicates(subset=['key_merge'])
                                 df_pj = df_pj[['key_merge', 'Penanggung Jawab']]
-                                
-                                # Gabungkan berdasarkan 'key_merge'
                                 df_base = pd.merge(df_base, df_pj, on='key_merge', how='left')
                                 df_base['Penanggung Jawab'] = df_base['Penanggung Jawab'].fillna("BELUM DIPETAKAN")
                             else:
-                                st.warning("⚠️ Kolom 'kode sub' atau 'penanggung jawab' tidak ditemukan.")
+                                st.warning("⚠️ Kolom 'kode sub' atau 'penanggung jawab' tidak ditemukan di Master Bidang.")
                                 df_base['Penanggung Jawab'] = "BELUM DIPETAKAN"
                         else:
                             df_base['Penanggung Jawab'] = "BELUM DIPETAKAN"
@@ -681,13 +714,13 @@ elif menu_pilihan == "Rekap SIPD":
                         df_base['Sisa Anggaran'] = df_base['Pagu Anggaran'] - df_base['Realisasi']
                         df_base['% Capaian'] = (df_base['Realisasi'] / df_base['Pagu Anggaran'].replace(0, pd.NA)).fillna(0) * 100
 
-                        # 5. Pengurutan & Penyusunan Kolom (Buang kolom rahasia 'key_merge')
+                        # 5. Pengurutan & Penyusunan Kolom
                         df_base = df_base.sort_values(by=['Penanggung Jawab', 'Kode Sub']).reset_index(drop=True)
                         kolom_urut = ['Kode Sub', 'Uraian Sub Kegiatan', 'Pagu Anggaran', 'Realisasi', 'Sisa Anggaran', '% Capaian', 'Penanggung Jawab']
                         df_final_eval = df_base[kolom_urut]
 
                         # 6. Tampilkan ke Layar
-                        st.success("✅ Evaluasi Realisasi Berhasil Dibuat!")
+                        st.success("✅ Evaluasi Realisasi Berhasil Ditarik dan Dibuat!")
                         st.dataframe(
                             df_final_eval,
                             use_container_width=True,
