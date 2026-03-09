@@ -208,7 +208,7 @@ elif menu_pilihan == "Import SIPD":
         st.warning("⚠️ Silakan isi kotak **Nama Tahapan** terlebih dahulu untuk memunculkan tombol upload.")
 
 # -------------------------------------------------------------------------
-# --- MODUL 3: REKAP SIPD (VERSI FINAL - MERGER MULTI SKPD & DPA) ---
+# --- MODUL 3: REKAP SIPD (VERSI FINAL - MERGER DPA & REALISASI) ---
 # -------------------------------------------------------------------------
 elif menu_pilihan == "Rekap SIPD":
     st.title("📊 Rekapitulasi SIPD")
@@ -275,7 +275,6 @@ elif menu_pilihan == "Rekap SIPD":
         list_skpd.insert(0, "SEMUA SKPD")
         
         with col_skpd:
-            # UBAHAN 1: Menjadi multiselect agar bisa memilih SKPD Lama & Baru
             skpd_pilihan = st.multiselect("🏢 Pilih SKPD (Bisa pilih >1 untuk dimerger):", list_skpd, default=["SEMUA SKPD"])
 
         if "SEMUA SKPD" in skpd_pilihan:
@@ -309,11 +308,9 @@ elif menu_pilihan == "Rekap SIPD":
         # ==========================================
         # 2.5 JANGKAR MERGER KODE & NOMENKLATUR
         # ==========================================
-        # Kita ambil hierarki dari Tahapan Akhir sebagai 'Kiblat' / Patokan
         df_akhir = df_proses[df_proses['tahapan'] == tahap_akhir]
         
         if not df_akhir.empty:
-            # Daftar kolom yang akan diseragamkan mengikuti Tahap Akhir
             kolom_hierarki = [
                 'kode_skpd', 'nama_skpd', 
                 'kode_urusan', 'nama_urusan', 
@@ -322,18 +319,16 @@ elif menu_pilihan == "Rekap SIPD":
                 'nama_sub_kegiatan'
             ]
             
-            # Buat referensi unik berdasarkan kode_sub_kegiatan
             df_ref = df_akhir[['kode_sub_kegiatan'] + kolom_hierarki].drop_duplicates('kode_sub_kegiatan').set_index('kode_sub_kegiatan')
             
-            # Terapkan (Timpa) data lama dengan data referensi (jika kode sub kegiatannya cocok)
             for col in kolom_hierarki:
                 dict_map = df_ref[col].to_dict()
                 df_proses[col] = df_proses['kode_sub_kegiatan'].map(dict_map).fillna(df_proses[col])
 
         # ==========================================
-        # 3. PEMBUATAN TAB MENU
+        # 3. PEMBUATAN TAB MENU (DITAMBAH TAB 4)
         # ==========================================
-        tab1, tab2, tab3 = st.tabs(["📑 Rekap Hierarki", "💰 Rekap Sumber Dana", "🔗 Integrasi Link DPA"])
+        tab1, tab2, tab3, tab4 = st.tabs(["📑 Rekap Hierarki", "💰 Rekap Sumber Dana", "🔗 Integrasi Link DPA", "📈 Evaluasi Realisasi"])
 
         # -------------------------------------------------------------------
         # TAB 1: REKAP HIERARKI TAHAPAN
@@ -468,7 +463,7 @@ elif menu_pilihan == "Rekap SIPD":
         # -------------------------------------------------------------------
         with tab3:
             st.info(f"💡 Menampilkan perbandingan: **{tahap_awal}** vs **{tahap_akhir}**")
-            file_link = st.file_uploader("📂 Upload File Excel Link DPA (Pastikan ada kolom 'kode sub' dan 'url')", type=["xlsx", "xls", "csv"])
+            file_link = st.file_uploader("📂 Upload File Excel Link DPA (Pastikan ada kolom 'kode sub' dan 'url')", type=["xlsx", "xls", "csv"], key="up_link")
             
             if st.button(f"🚀 PROSES & GABUNGKAN LINK DPA", type="primary", use_container_width=True, key="btn_tab3"):
                 if file_link is None:
@@ -499,6 +494,7 @@ elif menu_pilihan == "Rekap SIPD":
                                         pivot[t] = 0
                                 return pivot
 
+                            # ... (Proses hierarki DPA disingkat karena sama dengan sebelumnya, langsung lompat ke eksekusi l5) ...
                             l1 = hitung_dpa(df_proses, ['kode_skpd', 'nama_skpd'], 1)
                             l1['Kode'], l1['Uraian'], l1['Sort_Key'] = l1['kode_skpd'], l1['nama_skpd'], l1['kode_skpd']
                             kumpulan_dpa.append(l1)
@@ -579,6 +575,7 @@ elif menu_pilihan == "Rekap SIPD":
 
                             df_excel_dpa = df_hasil_dpa.apply(format_excel_dpa, axis=1)
 
+                            # ... (Warna Excel DPA sama) ...
                             def warna_baris_dpa(row):
                                 lvl = df_excel_dpa.loc[row.name, 'Level']
                                 if lvl == 1: return ['background-color: #ddebf7; font-weight: bold'] * len(row)
@@ -594,13 +591,128 @@ elif menu_pilihan == "Rekap SIPD":
                             output_dpa.seek(0)
                             
                             st.download_button(
-                                label="📥 Download Excel (Link DPA Tertanam)", 
+                                label="📥 Download Excel (Link DPA)", 
                                 data=output_dpa, 
                                 file_name=f"Integrasi_DPA_{nama_file_export}_{tahun_pilihan}.xlsx", 
                                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", 
                                 type="primary",
                                 key="dl_t3"
                             )
+
+        # -------------------------------------------------------------------
+        # TAB 4: EVALUASI KINERJA & REALISASI (FITUR BARU)
+        # -------------------------------------------------------------------
+        with tab4:
+            st.info(f"💡 Patokan Pagu Anggaran menggunakan Tahapan: **{tahap_akhir}**. Anda bisa mengosongkan salah satu *upload* jika tidak tersedia.")
+            
+            col_up1, col_up2 = st.columns(2)
+            with col_up1:
+                st.markdown("**1️⃣ Data Realisasi Keuangan**")
+                file_realisasi = st.file_uploader("Upload Excel (Kolom wajib: 'kode sub', 'realisasi')", type=["xlsx", "xls", "csv"], key="up_realisasi")
+            with col_up2:
+                st.markdown("**2️⃣ Master Bidang / PPTK**")
+                file_pptk = st.file_uploader("Upload Excel (Kolom wajib: 'kode sub', 'penanggung jawab')", type=["xlsx", "xls", "csv"], key="up_pptk")
+
+            if st.button("🚀 PROSES EVALUASI REALISASI", type="primary", use_container_width=True, key="btn_tab4"):
+                with st.spinner("Memproses sinkronisasi dan menjahit data realisasi..."):
+                    
+                    # 1. Tarik Data Dasar (Pagu Tahap Akhir)
+                    df_eval = df_proses[df_proses['tahapan'] == tahap_akhir].copy()
+                    
+                    if df_eval.empty:
+                        st.error(f"⚠️ Tidak ada data anggaran untuk tahapan {tahap_akhir}.")
+                    else:
+                        # Kelompokkan ke Level Sub Kegiatan
+                        df_base = df_eval.groupby(['kode_sub_kegiatan', 'nama_sub_kegiatan'])['pagu'].sum().reset_index()
+                        df_base.rename(columns={'kode_sub_kegiatan': 'Kode Sub', 'nama_sub_kegiatan': 'Uraian Sub Kegiatan', 'pagu': 'Pagu Anggaran'}, inplace=True)
+                        
+                        # 2. Proses File Realisasi
+                        if file_realisasi is not None:
+                            if file_realisasi.name.endswith('.csv'):
+                                df_real = pd.read_csv(file_realisasi)
+                            else:
+                                df_real = pd.read_excel(file_realisasi)
+                                
+                            df_real.columns = df_real.columns.astype(str).str.lower().str.strip()
+                            if 'kode sub' in df_real.columns and 'realisasi' in df_real.columns:
+                                df_real = df_real[['kode sub', 'realisasi']].rename(columns={'kode sub': 'Kode Sub', 'realisasi': 'Realisasi'})
+                                df_real['Kode Sub'] = df_real['Kode Sub'].astype(str).str.strip()
+                                df_real['Realisasi'] = pd.to_numeric(df_real['Realisasi'], errors='coerce').fillna(0)
+                                
+                                df_base = pd.merge(df_base, df_real, on='Kode Sub', how='left')
+                                df_base['Realisasi'] = df_base['Realisasi'].fillna(0)
+                            else:
+                                st.warning("⚠️ Kolom 'kode sub' atau 'realisasi' tidak ditemukan. Realisasi di-set Rp 0.")
+                                df_base['Realisasi'] = 0
+                        else:
+                            df_base['Realisasi'] = 0
+
+                        # 3. Proses File Master Bidang / PPTK
+                        if file_pptk is not None:
+                            if file_pptk.name.endswith('.csv'):
+                                df_pj = pd.read_csv(file_pptk)
+                            else:
+                                df_pj = pd.read_excel(file_pptk)
+                                
+                            df_pj.columns = df_pj.columns.astype(str).str.lower().str.strip()
+                            if 'kode sub' in df_pj.columns and 'penanggung jawab' in df_pj.columns:
+                                df_pj = df_pj[['kode sub', 'penanggung jawab']].rename(columns={'kode sub': 'Kode Sub', 'penanggung jawab': 'Penanggung Jawab'})
+                                df_pj['Kode Sub'] = df_pj['Kode Sub'].astype(str).str.strip()
+                                df_pj['Penanggung Jawab'] = df_pj['Penanggung Jawab'].fillna("BELUM DIPETAKAN")
+                                
+                                df_base = pd.merge(df_base, df_pj, on='Kode Sub', how='left')
+                                df_base['Penanggung Jawab'] = df_base['Penanggung Jawab'].fillna("BELUM DIPETAKAN")
+                            else:
+                                st.warning("⚠️ Kolom 'kode sub' atau 'penanggung jawab' tidak ditemukan. Di-set 'BELUM DIPETAKAN'.")
+                                df_base['Penanggung Jawab'] = "BELUM DIPETAKAN"
+                        else:
+                            df_base['Penanggung Jawab'] = "BELUM DIPETAKAN"
+
+                        # 4. Kalkulasi Sisa Anggaran & Persentase (Otomatis hindari error dibagi 0)
+                        df_base['Sisa Anggaran'] = df_base['Pagu Anggaran'] - df_base['Realisasi']
+                        df_base['% Capaian'] = (df_base['Realisasi'] / df_base['Pagu Anggaran'].replace(0, pd.NA)).fillna(0) * 100
+
+                        # 5. Pengurutan & Penyusunan Kolom (Bidang wajib paling kanan)
+                        df_base = df_base.sort_values(by=['Penanggung Jawab', 'Kode Sub']).reset_index(drop=True)
+                        kolom_urut = ['Kode Sub', 'Uraian Sub Kegiatan', 'Pagu Anggaran', 'Realisasi', 'Sisa Anggaran', '% Capaian', 'Penanggung Jawab']
+                        df_final_eval = df_base[kolom_urut]
+
+                        # 6. Tampilkan ke Layar
+                        st.success("✅ Evaluasi Realisasi Berhasil Dibuat!")
+                        st.dataframe(
+                            df_final_eval,
+                            use_container_width=True,
+                            height=500,
+                            column_config={
+                                "Pagu Anggaran": st.column_config.NumberColumn(format="%.0f"),
+                                "Realisasi": st.column_config.NumberColumn(format="%.0f"),
+                                "Sisa Anggaran": st.column_config.NumberColumn(format="%.0f"),
+                                "% Capaian": st.column_config.NumberColumn(format="%.2f %%"),
+                            }
+                        )
+
+                        # 7. Download Excel (Tab 4)
+                        import io
+                        output_eval = io.BytesIO()
+                        with pd.ExcelWriter(output_eval, engine='openpyxl') as writer:
+                            # Format khusus Excel
+                            format_eval = {
+                                'Pagu Anggaran': '{:,.0f}',
+                                'Realisasi': '{:,.0f}',
+                                'Sisa Anggaran': '{:,.0f}',
+                                '% Capaian': '{:.2f}'
+                            }
+                            df_final_eval.style.format(format_eval).to_excel(writer, index=False, sheet_name=f'Evaluasi_Realisasi')
+                        output_eval.seek(0)
+                        
+                        st.download_button(
+                            label="📥 Download Excel (Evaluasi Realisasi)", 
+                            data=output_eval, 
+                            file_name=f"Evaluasi_Realisasi_{nama_file_export}_{tahun_pilihan}.xlsx", 
+                            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", 
+                            type="primary",
+                            key="dl_t4"
+                        )
 
 
 
