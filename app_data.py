@@ -9,6 +9,8 @@ import pandas as pd
 from streamlit_option_menu import option_menu
 from supabase import create_client, Client
 from collections import defaultdict
+import plotly.express as px
+import plotly.graph_objects as go
 
 # ==========================================
 # 1. PENGATURAN HALAMAN
@@ -25,6 +27,13 @@ try:
 except Exception as e:
     st.error("⚠️ Gagal terhubung ke Database. Pastikan SUPABASE_URL dan SUPABASE_KEY sudah ada di Streamlit Secrets!")
     st.stop()
+
+#@st.cache_data(ttl=1000)
+def load_mapping_sotk(tahun):
+    res = supabase.table("mapping_sotk").select("kode_lama", "kode_baru").eq("tahun", tahun).execute()
+    # st.write("DEBUG mapping_sotk loader:", tahun, res.data)
+    mapping = {row['kode_lama']: row['kode_baru'] for row in res.data}
+    return mapping
 
 # ==========================================
 # 3. SISTEM LOGIN
@@ -528,6 +537,10 @@ elif menu_pilihan == "Rekap SIPD":
             tahun_pilihan = st.selectbox("📅 Pilih Tahun Anggaran:", list_tahun)
         df_tahun = df[df['tahun'] == tahun_pilihan].copy()
 
+        if 'mapping_sotk' not in st.session_state or st.session_state.mapping_sotk == {}:
+            st.session_state.mapping_sotk = load_mapping_sotk(tahun_pilihan)
+            # st.write("DEBUG mapping_sotk session:", st.session_state.mapping_sotk)
+
         list_skpd = sorted([s for s in df_tahun['nama_skpd'].unique() if s != ""])
         list_skpd.insert(0, "SEMUA SKPD")
         
@@ -567,65 +580,69 @@ elif menu_pilihan == "Rekap SIPD":
         # ==========================================
         
         # Inisialisasi session state untuk mapping
-        if 'mapping_sotk' not in st.session_state:
-            st.session_state.mapping_sotk = {}  # {kode_lama: kode_baru}
+        # ---- Notifikasi SUKSES Mapping ----
+        if st.session_state.get("mapping_alert") == "sukses":
+            st.success("✅ Mapping SOTK sudah disimpan ke database!")
+            st.session_state["mapping_alert"] = None
+        if st.session_state.get("mapping_alert") == "hapus":
+            st.success("✅ Mapping berhasil dihapus!")
+            st.session_state["mapping_alert"] = None
+        if st.session_state.get("mapping_alert") == "hapus_semua":
+            st.success("✅ Semua mapping berhasil dihapus!")
+            st.session_state["mapping_alert"] = None
         
         with st.expander("🔄 Mapping Perubahan SOTK / Perubahan Nama OPD (Opsional)", expanded=False):
-            st.caption(
-                "Jika ada OPD yang berubah nama/kode antar tahapan (contoh: Dinas Pendidikan dan Kebudayaan → Dinas Pendidikan), "
-                "tambahkan mapping di sini agar data dari kedua OPD digabung menjadi satu dalam rekap hierarki."
-            )
-            
-            # Ambil daftar unik SKPD dari data (kode + nama)
+            st.caption("Tambahkan mapping agar data OPD lama tergabung dengan OPD baru (mapping SOTK akan disimpan ke database).")
             df_skpd_unik = df_proses[['kode_skpd', 'nama_skpd']].drop_duplicates().sort_values('kode_skpd')
             daftar_opsi_skpd = [f"{row['kode_skpd']}  |  {row['nama_skpd']}" for _, row in df_skpd_unik.iterrows()]
-            
-            if len(daftar_opsi_skpd) < 2:
-                st.info("Hanya ada 1 SKPD dalam data. Mapping SOTK tidak diperlukan.")
-            else:
-                st.markdown("##### ➕ Tambah Mapping Baru")
-                col_lama, col_baru, col_btn = st.columns([4, 4, 2])
-                with col_lama:
-                    opd_lama_pilihan = st.selectbox("OPD LAMA (akan diganti):", daftar_opsi_skpd, key="opd_lama_sel")
-                with col_baru:
-                    opd_baru_pilihan = st.selectbox("OPD BARU (pengganti):", daftar_opsi_skpd, key="opd_baru_sel")
-                with col_btn:
-                    st.markdown("<br>", unsafe_allow_html=True)
-                    if st.button("➕ Tambah", type="primary", key="btn_tambah_sotk", use_container_width=True):
-                        kode_lama = opd_lama_pilihan.split("  |  ")[0].strip()
-                        kode_baru = opd_baru_pilihan.split("  |  ")[0].strip()
-                        if kode_lama == kode_baru:
-                            st.error("❌ OPD Lama dan Baru tidak boleh sama!")
-                        else:
-                            st.session_state.mapping_sotk[kode_lama] = kode_baru
-                            st.success(f"✅ Mapping ditambahkan: {opd_lama_pilihan} → {opd_baru_pilihan}")
-                            time.sleep(0.5)
-                            st.rerun()
-                
-                # Tampilkan mapping aktif
-                if st.session_state.mapping_sotk:
-                    st.markdown("##### 📋 Mapping SOTK Aktif:")
-                    
-                    # Buat dictionary nama untuk display
-                    dict_nama_skpd = dict(zip(df_skpd_unik['kode_skpd'], df_skpd_unik['nama_skpd']))
-                    
-                    for idx, (k_lama, k_baru) in enumerate(st.session_state.mapping_sotk.items()):
-                        nama_lama = dict_nama_skpd.get(k_lama, "???")
-                        nama_baru = dict_nama_skpd.get(k_baru, "???")
-                        
-                        col_info, col_hapus = st.columns([8, 2])
-                        with col_info:
-                            st.markdown(f"🔸 `{k_lama}` ({nama_lama}) **→** `{k_baru}` ({nama_baru})")
-                        with col_hapus:
-                            if st.button("🗑️ Hapus", key=f"hapus_sotk_{idx}"):
-                                del st.session_state.mapping_sotk[k_lama]
-                                st.rerun()
-                    
-                    if st.button("🧹 Hapus Semua Mapping", key="hapus_semua_sotk"):
-                        st.session_state.mapping_sotk = {}
+        
+            col_lama, col_baru, col_btn = st.columns([4, 4, 2])
+            with col_lama:
+                opd_lama_pilihan = st.selectbox("OPD LAMA", daftar_opsi_skpd, key="opd_lama_sel")
+            with col_baru:
+                opd_baru_pilihan = st.selectbox("OPD BARU", daftar_opsi_skpd, key="opd_baru_sel")
+            with col_btn:
+                st.markdown("<br>", unsafe_allow_html=True)
+                if st.button("➕ Tambah", type="primary", key="btn_tambah_sotk_db", use_container_width=True):
+                    kode_lama = opd_lama_pilihan.split("  |  ")[0].strip()
+                    kode_baru = opd_baru_pilihan.split("  |  ")[0].strip()
+                    if kode_lama == kode_baru:
+                        st.error("❌ OPD Lama dan Baru tidak boleh sama!")
+                    else:
+                        supabase.table("mapping_sotk").insert([{
+                            "kode_lama": kode_lama,
+                            "kode_baru": kode_baru,
+                            "tahun": tahun_pilihan,
+                            "username": st.session_state.get('username', '')
+                        }]).execute()
+                        #load_mapping_sotk.clear()
+                        st.session_state["mapping_alert"] = "sukses"
+                        st.session_state.mapping_sotk = load_mapping_sotk(tahun_pilihan)
                         st.rerun()
-                else:
-                    st.info("Belum ada mapping. Sistem akan bekerja seperti biasa (tanpa penggabungan OPD).")
+        
+            # -- Tampilkan mapping aktif
+            if st.session_state.mapping_sotk:
+                st.markdown("##### 📋 Mapping SOTK Aktif (Database):")
+                for idx, (k_lama, k_baru) in enumerate(st.session_state.mapping_sotk.items()):
+                    col_info, col_hapus = st.columns([8, 2])
+                    with col_info:
+                        st.markdown(f"🔸 `{k_lama}` → `{k_baru}`")
+                    with col_hapus:
+                        if st.button("🗑️ Hapus", key=f"hapus_sotk_{k_lama}_{k_baru}_{idx}"):
+                            supabase.table("mapping_sotk").delete().eq("kode_lama", k_lama).eq("tahun", tahun_pilihan).execute()
+                            #load_mapping_sotk.clear()
+                            st.session_state["mapping_alert"] = "hapus"
+                            st.session_state.mapping_sotk = load_mapping_sotk(tahun_pilihan)
+                            st.rerun()
+                # Tombol hapus semua mapping - di luar loop!
+                if st.button("🧹 Hapus Semua Mapping", key="hapus_semua_sotk_db"):
+                    supabase.table("mapping_sotk").delete().eq("tahun", tahun_pilihan).execute()
+                    #load_mapping_sotk.clear()
+                    st.session_state["mapping_alert"] = "hapus_semua"
+                    st.session_state.mapping_sotk = {}
+                    st.rerun()
+            else:
+                st.info("Belum ada mapping. Sistem akan berfungsi seperti biasa.")
 
         # ==========================================
         # 2.6 TERAPKAN TRANSLASI SOTK & JANGKAR NOMENKLATUR
@@ -661,7 +678,220 @@ elif menu_pilihan == "Rekap SIPD":
         # ==========================================
         # 3. PEMBUATAN TAB MENU
         # ==========================================
-        tab1, tab2, tab3, tab4, tab5 = st.tabs(["📑 Rekap Hierarki", "💰 Rekap Sumber Dana", "🔗 Integrasi Link DPA", "📈 Evaluasi Realisasi", "🏢 Rekap Per Bidang"])
+        tab0, tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
+            "📊 Dashboard",
+            "📑 Rekap Hierarki",
+            "💰 Rekap Sumber Dana",
+            "🔗 Integrasi Link DPA",
+            "📈 Evaluasi Realisasi",
+            "🏢 Rekap Per Bidang",
+            "📦 Rekap Kode Rekening"   # <--- Tambahan baru!
+        ])
+
+                # -------------------------------------------------------------------
+        # TAB 0: DASHBOARD RINGKASAN + PENCARIAN SUB KEGIATAN
+        # -------------------------------------------------------------------
+        with tab0:
+            st.markdown("### 📊 Dashboard Ringkasan Anggaran")
+            
+            # ---------- DATA UNTUK DASHBOARD ----------
+            df_dash = df_proses.copy()
+            
+            # Hitung metrik per tahapan
+            metrik_per_tahapan = df_dash.groupby('tahapan')['pagu'].sum()
+            
+            pagu_akhir = metrik_per_tahapan.get(tahap_akhir, 0)
+            pagu_awal = metrik_per_tahapan.get(tahap_awal, 0)
+            selisih_total = pagu_akhir - pagu_awal
+            
+            jumlah_skpd = df_dash[df_dash['tahapan'] == tahap_akhir]['kode_skpd'].nunique()
+            jumlah_sub_keg = df_dash[df_dash['tahapan'] == tahap_akhir]['kode_sub_kegiatan'].nunique()
+            jumlah_program = df_dash[df_dash['tahapan'] == tahap_akhir]['kode_program'].nunique()
+
+            # ---------- METRIC CARDS ----------
+            st.markdown(f"##### 📅 Tahun Anggaran: **{tahun_pilihan}** | Acuan Tahapan Akhir: **{tahap_akhir}**")
+            
+            m1, m2, m3, m4 = st.columns(4)
+            with m1:
+                st.metric(
+                    label="💰 Total Pagu (Tahap Akhir)", 
+                    value=f"Rp {pagu_akhir:,.0f}".replace(",", ".")
+                )
+            with m2:
+                st.metric(
+                    label="🏢 Jumlah SKPD", 
+                    value=f"{jumlah_skpd} OPD"
+                )
+            with m3:
+                st.metric(
+                    label="📋 Sub Kegiatan", 
+                    value=f"{jumlah_sub_keg} Sub Keg"
+                )
+            with m4:
+                delta_warna = "normal" if selisih_total >= 0 else "inverse"
+                st.metric(
+                    label=f"📊 Selisih ({tahap_akhir} - {tahap_awal})", 
+                    value=f"Rp {abs(selisih_total):,.0f}".replace(",", "."),
+                    delta=f"{'+ ' if selisih_total >= 0 else '- '}Rp {abs(selisih_total):,.0f}".replace(",", "."),
+                    delta_color=delta_warna
+                )
+            
+            st.markdown("---")
+            
+            # ---------- GRAFIK: 2 KOLOM ----------
+            col_chart1, col_chart2 = st.columns(2)
+            
+            # GRAFIK 1: Bar Chart Perbandingan Pagu per Tahapan
+            with col_chart1:
+                st.markdown("##### 📊 Perbandingan Total Pagu per Tahapan")
+                
+                data_bar = []
+                for t in list_tahapan:
+                    total = metrik_per_tahapan.get(t, 0)
+                    data_bar.append({"Tahapan": t, "Total Pagu": total})
+                df_bar = pd.DataFrame(data_bar)
+                
+                fig_bar = px.bar(
+                    df_bar, x="Tahapan", y="Total Pagu",
+                    color="Tahapan",
+                    text_auto=True,
+                    color_discrete_sequence=px.colors.qualitative.Set2
+                )
+                fig_bar.update_traces(texttemplate='%{y:,.0f}', textposition='outside', textfont_size=10)
+                fig_bar.update_layout(
+                    showlegend=False, 
+                    yaxis_title="Total Pagu (Rp)",
+                    xaxis_title="",
+                    height=400,
+                    margin=dict(t=20, b=20)
+                )
+                st.plotly_chart(fig_bar, use_container_width=True)
+            
+            # GRAFIK 2: Pie Chart Komposisi Sumber Dana
+            with col_chart2:
+                st.markdown(f"##### 🥧 Komposisi Sumber Dana ({tahap_akhir})")
+                
+                df_sd_dash = df_dash[df_dash['tahapan'] == tahap_akhir].copy()
+                df_sd_dash['nama_sumber_dana'] = df_sd_dash['nama_sumber_dana'].replace("", "TIDAK DIKETAHUI")
+                sd_pie = df_sd_dash.groupby('nama_sumber_dana')['pagu'].sum().reset_index()
+                sd_pie = sd_pie[sd_pie['pagu'] > 0].sort_values('pagu', ascending=False)
+                
+                if not sd_pie.empty:
+                    fig_pie = px.pie(
+                        sd_pie, names="nama_sumber_dana", values="pagu",
+                        color_discrete_sequence=px.colors.qualitative.Pastel,
+                        hole=0.35
+                    )
+                    fig_pie.update_traces(textinfo='percent+label', textposition='outside', textfont_size=10)
+                    fig_pie.update_layout(
+                        showlegend=False,
+                        height=400,
+                        margin=dict(t=20, b=20)
+                    )
+                    st.plotly_chart(fig_pie, use_container_width=True)
+                else:
+                    st.info("Tidak ada data sumber dana untuk ditampilkan.")
+            
+            st.markdown("---")
+            
+            # ---------- GRAFIK 3: Bar Chart Pagu per SKPD ----------
+            st.markdown(f"##### 🏢 Pagu per SKPD ({tahap_akhir})")
+            
+            df_skpd_dash = df_dash[df_dash['tahapan'] == tahap_akhir].groupby(['kode_skpd', 'nama_skpd'])['pagu'].sum().reset_index()
+            df_skpd_dash = df_skpd_dash.sort_values('pagu', ascending=True)
+            
+            if not df_skpd_dash.empty:
+                # Potong nama SKPD agar tidak terlalu panjang di grafik
+                df_skpd_dash['label_skpd'] = df_skpd_dash['nama_skpd'].str[:40]
+                
+                fig_skpd = px.bar(
+                    df_skpd_dash, x="pagu", y="label_skpd",
+                    orientation='h',
+                    text_auto=True,
+                    color_discrete_sequence=["#0083B8"]
+                )
+                fig_skpd.update_traces(texttemplate='%{x:,.0f}', textposition='outside', textfont_size=9)
+                fig_skpd.update_layout(
+                    xaxis_title="Total Pagu (Rp)",
+                    yaxis_title="",
+                    height=max(300, len(df_skpd_dash) * 40),
+                    margin=dict(t=20, b=20, l=10)
+                )
+                st.plotly_chart(fig_skpd, use_container_width=True)
+            
+            st.markdown("---")
+            
+            # ---------- TABEL: TOP 10 SELISIH TERBESAR ----------
+            st.markdown(f"##### 🔝 Top 10 Sub Kegiatan — Selisih Terbesar ({tahap_akhir} vs {tahap_awal})")
+            
+            df_selisih = df_dash.groupby(['kode_sub_kegiatan', 'nama_sub_kegiatan', 'nama_skpd', 'tahapan'])['pagu'].sum().reset_index()
+            pivot_selisih = df_selisih.pivot_table(
+                index=['kode_sub_kegiatan', 'nama_sub_kegiatan', 'nama_skpd'], 
+                columns='tahapan', values='pagu', aggfunc='sum', fill_value=0
+            ).reset_index()
+            
+            for t in [tahap_awal, tahap_akhir]:
+                if t not in pivot_selisih.columns:
+                    pivot_selisih[t] = 0
+            
+            pivot_selisih['Selisih'] = pivot_selisih[tahap_akhir] - pivot_selisih[tahap_awal]
+            pivot_selisih['Abs_Selisih'] = pivot_selisih['Selisih'].abs()
+            
+            top10 = pivot_selisih.nlargest(10, 'Abs_Selisih')[
+                ['kode_sub_kegiatan', 'nama_sub_kegiatan', 'nama_skpd', tahap_awal, tahap_akhir, 'Selisih']
+            ].reset_index(drop=True)
+            
+            top10.columns = ['Kode Sub', 'Uraian Sub Kegiatan', 'SKPD', f'Pagu {tahap_awal}', f'Pagu {tahap_akhir}', 'Selisih']
+            
+            if not top10.empty:
+                kolom_angka_top = [f'Pagu {tahap_awal}', f'Pagu {tahap_akhir}', 'Selisih']
+                st.dataframe(
+                    top10,
+                    use_container_width=True,
+                    column_config={
+                        f'Pagu {tahap_awal}': st.column_config.NumberColumn(format="Rp %.0f"),
+                        f'Pagu {tahap_akhir}': st.column_config.NumberColumn(format="Rp %.0f"),
+                        "Selisih": st.column_config.NumberColumn(format="Rp %.0f"),
+                    }
+                )
+            else:
+                st.info("Tidak cukup data untuk menampilkan tabel selisih.")
+
+            st.markdown("---")
+            # ---------- PENCARIAN SUB KEGIATAN, KODE, SKPD ----------
+            st.markdown("## 🔍 Cari Sub Kegiatan, Kode Sub, atau SKPD")
+            keyword = st.text_input("Masukkan kata kunci pencarian (nama sub kegiatan, kode sub, SKPD):", "")
+            if keyword:
+                df_search = df_dash.copy()
+                mask = (
+                    df_search['nama_sub_kegiatan'].str.contains(keyword, case=False, na=False) |
+                    df_search['kode_sub_kegiatan'].str.contains(keyword, case=False, na=False) |
+                    df_search['nama_skpd'].str.contains(keyword, case=False, na=False)
+                )
+                hasil = df_search[mask].copy()
+                st.success(f"Menemukan {len(hasil)} baris hasil pencarian.")
+                kolom_tampil = [
+                    'kode_sub_kegiatan', 'nama_sub_kegiatan', 'nama_skpd',
+                    'tahapan', 'pagu', 'nama_sumber_dana'
+                ]
+                st.dataframe(
+                    hasil[kolom_tampil].sort_values('pagu', ascending=False),
+                    use_container_width=True,
+                    column_config={
+                        'pagu': st.column_config.NumberColumn(format="Rp %.0f"),
+                    }
+                )
+                # Tambahkan tombol download CSV jika perlu
+                if len(hasil) > 0:
+                    hasil_csv = hasil[kolom_tampil].to_csv(index=False).encode('utf-8')
+                    st.download_button(
+                        label="📥 Download Hasil Pencarian (CSV)",
+                        data=hasil_csv,
+                        file_name="Hasil_Pencarian_SubKegiatan.csv",
+                        mime="text/csv"
+                    )
+            else:
+                st.info("Masukkan kata kunci untuk mencari sub kegiatan, kode, atau SKPD.")
 
         # -------------------------------------------------------------------
         # TAB 1: REKAP HIERARKI TAHAPAN (MENGGUNAKAN FUNGSI REUSABLE)
@@ -945,7 +1175,7 @@ elif menu_pilihan == "Rekap SIPD":
                     df_eval = df_proses[df_proses['tahapan'] == tahap_akhir].copy()
                     
                     if df_eval.empty:
-                        st.error(f"⚠�� Tidak ada data anggaran untuk tahapan {tahap_akhir}.")
+                        st.error(f"⚠   Tidak ada data anggaran untuk tahapan {tahap_akhir}.")
                     else:
                         df_base = df_eval.groupby(['kode_sub_kegiatan', 'nama_sub_kegiatan'])['pagu'].sum().reset_index()
                         df_base.rename(columns={'kode_sub_kegiatan': 'Kode Sub', 'nama_sub_kegiatan': 'Uraian Sub Kegiatan', 'pagu': 'Pagu Anggaran'}, inplace=True)
@@ -1192,3 +1422,107 @@ elif menu_pilihan == "Rekap SIPD":
                                 
                         except Exception as e:
                             st.error(f"❌ Terjadi kesalahan saat memproses data: {e}")
+
+        # -------------------------------------
+        # TAB 6: REKAP KODE REKENING dan GRUP JENIS BELANJA
+        # -------------------------------------                   
+        with tab6:
+            st.markdown("### 📦 Rekap Kode Rekening Anggaran (Detail & Grup Jenis Belanja)")
+        
+            # --- REKAP KODE REKENING DETAIL (seperti sebelumnya) ---
+            df_rek = df_proses.copy()
+            df_rek = df_rek[df_rek['tahapan'].isin([tahap_awal, tahap_akhir])]
+            df_rek = df_rek[df_rek['kode_rekening'] != ""]
+            df_rek['Major Rek'] = df_rek['kode_rekening'].str.slice(0, 5)
+            rekap_rekening = df_rek.groupby(['Major Rek', 'nama_rekening', 'tahapan'])['pagu'].sum().reset_index()
+            pivot_rek = rekap_rekening.pivot_table(
+                index=['Major Rek', 'nama_rekening'],
+                columns='tahapan',
+                values='pagu',
+                aggfunc='sum',
+                fill_value=0
+            ).reset_index()
+            for t in [tahap_awal, tahap_akhir]:
+                if t not in pivot_rek.columns:
+                    pivot_rek[t] = 0
+            pivot_rek['Selisih'] = pivot_rek[tahap_akhir] - pivot_rek[tahap_awal]
+            urutan_kolom = [tahap_awal, tahap_akhir]
+            pivot_rek = pivot_rek[['Major Rek', 'nama_rekening'] + urutan_kolom + ['Selisih']]
+            total_row = pd.DataFrame([{
+                'Major Rek': 'TOTAL',
+                'nama_rekening': 'TOTAL KESELURUHAN',
+                tahap_awal: pivot_rek[tahap_awal].sum(),
+                tahap_akhir: pivot_rek[tahap_akhir].sum(),
+                'Selisih': pivot_rek['Selisih'].sum()
+            }])
+            pivot_rek = pd.concat([pivot_rek, total_row], ignore_index=True)
+            st.markdown("#### 📄 Rekap Kode Rekening (Detail)")
+            st.dataframe(
+                pivot_rek,
+                use_container_width=True,
+                column_config={
+                    tahap_awal: st.column_config.NumberColumn(format="Rp %.0f"),
+                    tahap_akhir: st.column_config.NumberColumn(format="Rp %.0f"),
+                    "Selisih": st.column_config.NumberColumn(format="Rp %.0f"),
+                }
+            )
+            output_excel = io.BytesIO()
+            with pd.ExcelWriter(output_excel, engine='openpyxl') as writer:
+                pivot_rek.to_excel(writer, index=False, sheet_name='Rekap_Kode_Rekening')
+            output_excel.seek(0)
+            st.download_button(
+                label="📥 Download Rekap Kode Rekening (Excel)",
+                data=output_excel,
+                file_name=f"Rekap_Kode_Rekening_{tahun_pilihan}_{tahap_akhir}.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            )
+        
+            st.markdown("---")
+        
+            # --- REKAP GRUP JENIS BELANJA (POINT D) ---
+            st.markdown("#### 📊 Rekap Grup Jenis Belanja (Operasi, Modal, Tak Terduga, Transfer, dll)")
+            df_jenis = df_proses[df_proses['kode_rekening'] != ""].copy()
+            df_jenis['Grup Rek'] = df_jenis['kode_rekening'].str.slice(0, 3)
+            mapping_grup = {
+                '5.1': 'Belanja Operasi',
+                '5.2': 'Belanja Modal',
+                '5.3': 'Belanja Tak Terduga',
+                '5.4': 'Belanja Transfer'
+            }
+            df_jenis['Nama Grup Rek'] = df_jenis['Grup Rek'].map(mapping_grup).fillna('Lainnya')
+            rekap_grup = df_jenis.groupby(['Grup Rek', 'Nama Grup Rek', 'tahapan'])['pagu'].sum().reset_index()
+            pivot_grup = rekap_grup.pivot_table(
+                index=['Grup Rek', 'Nama Grup Rek'],
+                columns='tahapan',
+                values='pagu',
+                aggfunc='sum',
+                fill_value=0
+            ).reset_index()
+            for t in list_tahapan:
+                if t not in pivot_grup.columns:
+                    pivot_grup[t] = 0
+            pivot_grup['Selisih'] = pivot_grup[tahap_akhir] - pivot_grup[tahap_awal]
+            urut_kolom = ['Grup Rek', 'Nama Grup Rek'] + list_tahapan + ['Selisih']
+            pivot_grup = pivot_grup[urut_kolom]
+            total_row_grup = pd.DataFrame([{
+                'Grup Rek': 'TOTAL',
+                'Nama Grup Rek': 'TOTAL KESELURUHAN',
+                **{t: pivot_grup[t].sum() for t in list_tahapan},
+                'Selisih': pivot_grup['Selisih'].sum()
+            }])
+            pivot_grup = pd.concat([pivot_grup, total_row_grup], ignore_index=True)
+            st.dataframe(
+                pivot_grup,
+                use_container_width=True,
+                column_config={t: st.column_config.NumberColumn(format="Rp %.0f") for t in list_tahapan}
+            )
+            output_excel_grup = io.BytesIO()
+            with pd.ExcelWriter(output_excel_grup, engine='openpyxl') as writer:
+                pivot_grup.to_excel(writer, index=False, sheet_name='Rekap_Jenis_Belanja')
+            output_excel_grup.seek(0)
+            st.download_button(
+                label="📥 Download Rekap Grup Jenis Belanja (Excel)",
+                data=output_excel_grup,
+                file_name=f"Rekap_Jenis_Belanja_{tahun_pilihan}.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            )
