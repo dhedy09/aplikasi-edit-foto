@@ -663,7 +663,15 @@ elif menu_pilihan == "Rekap SIPD":
         # ==========================================
         # 3. PEMBUATAN TAB MENU
         # ==========================================
-        tab0, tab1, tab2, tab3, tab4, tab5 = st.tabs(["📊 Dashboard", "📑 Rekap Hierarki", "💰 Rekap Sumber Dana", "🔗 Integrasi Link DPA", "📈 Evaluasi Realisasi", "🏢 Rekap Per Bidang"])
+        tab0, tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
+            "📊 Dashboard",
+            "📑 Rekap Hierarki",
+            "💰 Rekap Sumber Dana",
+            "🔗 Integrasi Link DPA",
+            "📈 Evaluasi Realisasi",
+            "🏢 Rekap Per Bidang",
+            "📦 Rekap Kode Rekening"   # <--- Tambahan baru!
+        ])
 
         # -------------------------------------------------------------------
         # TAB 0: DASHBOARD RINGKASAN (OTOMATIS TANPA KLIK PROSES)
@@ -1363,5 +1371,57 @@ elif menu_pilihan == "Rekap SIPD":
                                 
                         except Exception as e:
                             st.error(f"❌ Terjadi kesalahan saat memproses data: {e}")
+
+            with tab6:
+                st.markdown("### 📦 Rekap Kode Rekening Anggaran")
+                df_rek = df_proses.copy()
+                # Hanya data tahap awal dan akhir
+                df_rek = df_rek[df_rek['tahapan'].isin([tahap_awal, tahap_akhir])]
+                # Hapus kosong
+                df_rek = df_rek[df_rek['kode_rekening'] != ""]
+                # Group ke level utama (5.x.x)
+                df_rek['Major Rek'] = df_rek['kode_rekening'].str.slice(0, 5)
+                rekap_rekening = df_rek.groupby(['Major Rek', 'nama_rekening', 'tahapan'])['pagu'].sum().reset_index()
+                pivot_rek = rekap_rekening.pivot_table(
+                    index=['Major Rek', 'nama_rekening'],
+                    columns='tahapan',
+                    values='pagu',
+                    aggfunc='sum',
+                    fill_value=0
+                ).reset_index()
+                # Pastikan kolom tahap
+                for t in [tahap_awal, tahap_akhir]:
+                    if t not in pivot_rek.columns:
+                        pivot_rek[t] = 0
+                pivot_rek['Selisih'] = pivot_rek[tahap_akhir] - pivot_rek[tahap_awal]
+                # Tambah baris total
+                total_row = pd.DataFrame([{
+                    'Major Rek': 'TOTAL',
+                    'nama_rekening': 'TOTAL KESELURUHAN',
+                    tahap_awal: pivot_rek[tahap_awal].sum(),
+                    tahap_akhir: pivot_rek[tahap_akhir].sum(),
+                    'Selisih': pivot_rek['Selisih'].sum()
+                }])
+                pivot_rek = pd.concat([pivot_rek, total_row], ignore_index=True)
+                # Tabel & Download Excel
+                st.dataframe(
+                    pivot_rek,
+                    use_container_width=True,
+                    column_config={
+                        tahap_awal: st.column_config.NumberColumn(format="Rp %.0f"),
+                        tahap_akhir: st.column_config.NumberColumn(format="Rp %.0f"),
+                        "Selisih": st.column_config.NumberColumn(format="Rp %.0f"),
+                    }
+                )
+                output_excel = io.BytesIO()
+                with pd.ExcelWriter(output_excel, engine='openpyxl') as writer:
+                    pivot_rek.to_excel(writer, index=False, sheet_name='Rekap_Kode_Rekening')
+                output_excel.seek(0)
+                st.download_button(
+                    label="📥 Download Rekap Kode Rekening (Excel)",
+                    data=output_excel,
+                    file_name=f"Rekap_Kode_Rekening_{tahun_pilihan}_{tahap_akhir}.xlsx",
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                )
 
 
