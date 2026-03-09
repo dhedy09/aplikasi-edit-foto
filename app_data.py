@@ -582,50 +582,50 @@ elif menu_pilihan == "Rekap SIPD":
             st.session_state.mapping_sotk = {}  # {kode_lama: kode_baru}
         
         with st.expander("🔄 Mapping Perubahan SOTK / Perubahan Nama OPD (Opsional)", expanded=False):
-        st.caption("Tambahkan mapping agar data OPD lama tergabung dengan OPD baru (mapping SOTK akan disimpan ke database).")
-        df_skpd_unik = df_proses[['kode_skpd', 'nama_skpd']].drop_duplicates().sort_values('kode_skpd')
-        daftar_opsi_skpd = [f"{row['kode_skpd']}  |  {row['nama_skpd']}" for _, row in df_skpd_unik.iterrows()]
-    
-        col_lama, col_baru, col_btn = st.columns([4, 4, 2])
-        with col_lama:
-            opd_lama_pilihan = st.selectbox("OPD LAMA", daftar_opsi_skpd, key="opd_lama_sel")
-        with col_baru:
-            opd_baru_pilihan = st.selectbox("OPD BARU", daftar_opsi_skpd, key="opd_baru_sel")
-        with col_btn:
-            st.markdown("<br>", unsafe_allow_html=True)
-            if st.button("➕ Tambah", type="primary", key="btn_tambah_sotk_db", use_container_width=True):
-                kode_lama = opd_lama_pilihan.split("  |  ")[0].strip()
-                kode_baru = opd_baru_pilihan.split("  |  ")[0].strip()
-                if kode_lama == kode_baru:
-                    st.error("❌ OPD Lama dan Baru tidak boleh sama!")
-                else:
-                    supabase.table("mapping_sotk").insert([{
-                        "kode_lama": kode_lama,
-                        "kode_baru": kode_baru,
-                        "tahun": tahun_pilihan,
-                        "username": st.session_state.get('username', '')
-                    }]).execute()
-                    st.success("✅ Mapping SOTK sudah disimpan ke database!")
-                    st.session_state.mapping_sotk = load_mapping_sotk(tahun_pilihan)
-                    st.rerun()
-        # Tampilkan mapping aktif
-        if st.session_state.mapping_sotk:
-            st.markdown("##### 📋 Mapping SOTK Aktif (Database):")
-            for idx, (k_lama, k_baru) in enumerate(st.session_state.mapping_sotk.items()):
-                col_info, col_hapus = st.columns([8, 2])
-                with col_info:
-                    st.markdown(f"🔸 `{k_lama}` → `{k_baru}`")
-                with col_hapus:
-                    if st.button("🗑️ Hapus", key=f"hapus_sotk_{idx}"):
-                        supabase.table("mapping_sotk").delete().eq("kode_lama", k_lama).eq("tahun", tahun_pilihan).execute()
+            st.caption("Tambahkan mapping agar data OPD lama tergabung dengan OPD baru (mapping SOTK akan disimpan ke database).")
+            df_skpd_unik = df_proses[['kode_skpd', 'nama_skpd']].drop_duplicates().sort_values('kode_skpd')
+            daftar_opsi_skpd = [f"{row['kode_skpd']}  |  {row['nama_skpd']}" for _, row in df_skpd_unik.iterrows()]
+        
+            col_lama, col_baru, col_btn = st.columns([4, 4, 2])
+            with col_lama:
+                opd_lama_pilihan = st.selectbox("OPD LAMA", daftar_opsi_skpd, key="opd_lama_sel")
+            with col_baru:
+                opd_baru_pilihan = st.selectbox("OPD BARU", daftar_opsi_skpd, key="opd_baru_sel")
+            with col_btn:
+                st.markdown("<br>", unsafe_allow_html=True)
+                if st.button("➕ Tambah", type="primary", key="btn_tambah_sotk_db", use_container_width=True):
+                    kode_lama = opd_lama_pilihan.split("  |  ")[0].strip()
+                    kode_baru = opd_baru_pilihan.split("  |  ")[0].strip()
+                    if kode_lama == kode_baru:
+                        st.error("❌ OPD Lama dan Baru tidak boleh sama!")
+                    else:
+                        supabase.table("mapping_sotk").insert([{
+                            "kode_lama": kode_lama,
+                            "kode_baru": kode_baru,
+                            "tahun": tahun_pilihan,
+                            "username": st.session_state.get('username', '')
+                        }]).execute()
+                        st.success("✅ Mapping SOTK sudah disimpan ke database!")
                         st.session_state.mapping_sotk = load_mapping_sotk(tahun_pilihan)
                         st.rerun()
-            if st.button("🧹 Hapus Semua Mapping", key="hapus_semua_sotk_db"):
-                supabase.table("mapping_sotk").delete().eq("tahun", tahun_pilihan).execute()
-                st.session_state.mapping_sotk = {}
-                st.rerun()
-        else:
-            st.info("Belum ada mapping. Sistem akan berfungsi seperti biasa.")
+            # Tampilkan mapping aktif
+            if st.session_state.mapping_sotk:
+                st.markdown("##### 📋 Mapping SOTK Aktif (Database):")
+                for idx, (k_lama, k_baru) in enumerate(st.session_state.mapping_sotk.items()):
+                    col_info, col_hapus = st.columns([8, 2])
+                    with col_info:
+                        st.markdown(f"🔸 `{k_lama}` → `{k_baru}`")
+                    with col_hapus:
+                        if st.button("🗑️ Hapus", key=f"hapus_sotk_{idx}"):
+                            supabase.table("mapping_sotk").delete().eq("kode_lama", k_lama).eq("tahun", tahun_pilihan).execute()
+                            st.session_state.mapping_sotk = load_mapping_sotk(tahun_pilihan)
+                            st.rerun()
+                if st.button("🧹 Hapus Semua Mapping", key="hapus_semua_sotk_db"):
+                    supabase.table("mapping_sotk").delete().eq("tahun", tahun_pilihan).execute()
+                    st.session_state.mapping_sotk = {}
+                    st.rerun()
+            else:
+                st.info("Belum ada mapping. Sistem akan berfungsi seperti biasa.")
 
         # ==========================================
         # 2.6 TERAPKAN TRANSLASI SOTK & JANGKAR NOMENKLATUR
@@ -1509,6 +1509,7 @@ elif menu_pilihan == "Rekap SIPD":
                 file_name=f"Rekap_Jenis_Belanja_{tahun_pilihan}.xlsx",
                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
             )
+
 
 
 
