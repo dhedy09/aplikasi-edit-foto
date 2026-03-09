@@ -95,7 +95,7 @@ with st.sidebar:
 # -------------------------------------------------------------------------
 # --- MODUL 1: ALAT EXCEL ---
 # -------------------------------------------------------------------------
-if menu_pilihan == "Alat Excel":
+if menu_umum == "Alat Excel":
     st.title("🛠️ Alat Excel")
     st.write("Gunakan alat ini untuk merapikan data Dapodik/SIPD dalam satu kali jalan.")
     
@@ -777,6 +777,7 @@ elif menu_sipd == "Rekap SIPD":
                             type="primary",
                             key="dl_t4"
                         )
+
 
 
 
