@@ -600,7 +600,7 @@ elif menu_pilihan == "Rekap SIPD":
                             )
 
         # -------------------------------------------------------------------
-        # TAB 4: EVALUASI KINERJA & REALISASI (FITUR BARU)
+        # TAB 4: EVALUASI KINERJA & REALISASI (PERBAIKAN MERGE)
         # -------------------------------------------------------------------
         with tab4:
             st.info(f"💡 Patokan Pagu Anggaran menggunakan Tahapan: **{tahap_akhir}**. Anda bisa mengosongkan salah satu *upload* jika tidak tersedia.")
@@ -626,6 +626,9 @@ elif menu_pilihan == "Rekap SIPD":
                         df_base = df_eval.groupby(['kode_sub_kegiatan', 'nama_sub_kegiatan'])['pagu'].sum().reset_index()
                         df_base.rename(columns={'kode_sub_kegiatan': 'Kode Sub', 'nama_sub_kegiatan': 'Uraian Sub Kegiatan', 'pagu': 'Pagu Anggaran'}, inplace=True)
                         
+                        # KUNCI PERBAIKAN 1: Cuci spasi tersembunyi dari Database!
+                        df_base['Kode Sub'] = df_base['Kode Sub'].astype(str).str.strip()
+                        
                         # 2. Proses File Realisasi
                         if file_realisasi is not None:
                             if file_realisasi.name.endswith('.csv'):
@@ -638,6 +641,9 @@ elif menu_pilihan == "Rekap SIPD":
                                 df_real = df_real[['kode sub', 'realisasi']].rename(columns={'kode sub': 'Kode Sub', 'realisasi': 'Realisasi'})
                                 df_real['Kode Sub'] = df_real['Kode Sub'].astype(str).str.strip()
                                 df_real['Realisasi'] = pd.to_numeric(df_real['Realisasi'], errors='coerce').fillna(0)
+                                
+                                # Cegah error jika ada duplikat kode di excel realisasi (kita jumlahkan)
+                                df_real = df_real.groupby('Kode Sub')['Realisasi'].sum().reset_index()
                                 
                                 df_base = pd.merge(df_base, df_real, on='Kode Sub', how='left')
                                 df_base['Realisasi'] = df_base['Realisasi'].fillna(0)
@@ -657,10 +663,15 @@ elif menu_pilihan == "Rekap SIPD":
                             df_pj.columns = df_pj.columns.astype(str).str.lower().str.strip()
                             if 'kode sub' in df_pj.columns and 'penanggung jawab' in df_pj.columns:
                                 df_pj = df_pj[['kode sub', 'penanggung jawab']].rename(columns={'kode sub': 'Kode Sub', 'penanggung jawab': 'Penanggung Jawab'})
+                                
+                                # KUNCI PERBAIKAN 2: Cuci spasi tersembunyi dari Excel dan hapus baris ganda
                                 df_pj['Kode Sub'] = df_pj['Kode Sub'].astype(str).str.strip()
-                                df_pj['Penanggung Jawab'] = df_pj['Penanggung Jawab'].fillna("BELUM DIPETAKAN")
+                                df_pj = df_pj.drop_duplicates(subset=['Kode Sub'])
                                 
                                 df_base = pd.merge(df_base, df_pj, on='Kode Sub', how='left')
+                                
+                                # Pastikan formatnya bersih jika data dari excel kosong/null
+                                df_base['Penanggung Jawab'] = df_base['Penanggung Jawab'].astype(str).replace(['nan', 'NaN', 'None', ''], 'BELUM DIPETAKAN')
                                 df_base['Penanggung Jawab'] = df_base['Penanggung Jawab'].fillna("BELUM DIPETAKAN")
                             else:
                                 st.warning("⚠️ Kolom 'kode sub' atau 'penanggung jawab' tidak ditemukan. Di-set 'BELUM DIPETAKAN'.")
@@ -668,11 +679,11 @@ elif menu_pilihan == "Rekap SIPD":
                         else:
                             df_base['Penanggung Jawab'] = "BELUM DIPETAKAN"
 
-                        # 4. Kalkulasi Sisa Anggaran & Persentase (Otomatis hindari error dibagi 0)
+                        # 4. Kalkulasi Sisa Anggaran & Persentase
                         df_base['Sisa Anggaran'] = df_base['Pagu Anggaran'] - df_base['Realisasi']
                         df_base['% Capaian'] = (df_base['Realisasi'] / df_base['Pagu Anggaran'].replace(0, pd.NA)).fillna(0) * 100
 
-                        # 5. Pengurutan & Penyusunan Kolom (Bidang wajib paling kanan)
+                        # 5. Pengurutan & Penyusunan Kolom
                         df_base = df_base.sort_values(by=['Penanggung Jawab', 'Kode Sub']).reset_index(drop=True)
                         kolom_urut = ['Kode Sub', 'Uraian Sub Kegiatan', 'Pagu Anggaran', 'Realisasi', 'Sisa Anggaran', '% Capaian', 'Penanggung Jawab']
                         df_final_eval = df_base[kolom_urut]
@@ -691,11 +702,10 @@ elif menu_pilihan == "Rekap SIPD":
                             }
                         )
 
-                        # 7. Download Excel (Tab 4)
+                        # 7. Download Excel
                         import io
                         output_eval = io.BytesIO()
                         with pd.ExcelWriter(output_eval, engine='openpyxl') as writer:
-                            # Format khusus Excel
                             format_eval = {
                                 'Pagu Anggaran': '{:,.0f}',
                                 'Realisasi': '{:,.0f}',
@@ -713,6 +723,7 @@ elif menu_pilihan == "Rekap SIPD":
                             type="primary",
                             key="dl_t4"
                         )
+
 
 
 
