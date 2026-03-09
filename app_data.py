@@ -3,6 +3,8 @@ import openpyxl
 import io
 import re
 import time
+import re
+import requests
 from datetime import datetime
 import pandas as pd
 from streamlit_option_menu import option_menu
@@ -581,68 +583,87 @@ elif menu_pilihan == "Rekap SIPD":
                     st.download_button("📥 Download Excel (Sumber Dana)", output_excel_sd, f"SumberDana_{nama_file_export}_{tahun_pilihan}.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", key="dl_t2")
 
         # -------------------------------------------------------------------
-        # TAB 3: INTEGRASI LINK DPA (HYBRID LOKAL & CLOUD)
+        # TAB 3: INTEGRASI LINK DPA (HYBRID CLOUD CANGGIH - AUTO DETECT SHEET)
         # -------------------------------------------------------------------
         with tab3:
             st.info(f"💡 Menampilkan perbandingan: **{tahap_awal}** vs **{tahap_akhir}**")
             
-            # Pilihan Mode Input Data
-            sumber_data_dpa = st.radio("Pilih Mode Input Link DPA:", ["📂 Upload File Lokal (Excel/CSV)", "🌐 Link Google Sheet (Public)"], horizontal=True, key="radio_dpa")
+            sumber_data_dpa = st.radio("Pilih Mode Input Link DPA:", ["📂 Upload File Lokal (Excel/CSV)", "🌐 Link Google Sheet (Otomatis Baca Sheet)"], horizontal=True, key="radio_dpa")
             
             file_link = None
             link_dpa_input = ""
+            df_link_gsheet = pd.DataFrame()
             
             if sumber_data_dpa == "📂 Upload File Lokal (Excel/CSV)":
                 file_link = st.file_uploader("📂 Upload File Excel Link DPA (Pastikan ada kolom 'kode sub' dan 'url')", type=["xlsx", "xls", "csv"], key="up_link")
             else:
                 link_dpa_input = st.text_input("🔗 Paste Link Google Sheet DPA:", placeholder="https://docs.google.com/spreadsheets/d/...")
-                st.caption("Pastikan akses link diatur ke: *Anyone with the link / Siapa saja yang memiliki link*")
-
-            # Fungsi Gaib Pengubah Link Google Sheet -> CSV
-            def konversi_link_gsheet(url):
-                if pd.isna(url) or str(url).strip() == "": return None
-                url = str(url).strip()
-                if "docs.google.com/spreadsheets" in url:
-                    import re
-                    match = re.search(r'/d/([a-zA-Z0-9-_]+)', url)
+                st.caption("Gunakan link Share biasa dari HP atau PC. Pastikan akses diatur ke: *Anyone with the link*")
+                
+                # --- LOGIKA AJAIB PENDETEKSI SHEET ---
+                if link_dpa_input:
+                    # Mencungkil ID Dokumen dari URL menggunakan Regex
+                    match = re.search(r'/d/([a-zA-Z0-9-_]+)', link_dpa_input)
                     if match:
-                        return f"https://docs.google.com/spreadsheets/d/{match.group(1)}/export?format=csv"
-                return None
+                        doc_id = match.group(1)
+                        # Memaksa Google memberikan format XLSX (Excel Lengkap)
+                        url_xlsx = f"https://docs.google.com/spreadsheets/d/{doc_id}/export?format=xlsx"
+                        
+                        try:
+                            # Cache agar tidak download berulang-ulang tiap kali user klik dropdown
+                            @st.cache_data(show_spinner=False, ttl=600)
+                            def tarik_excel_google(url):
+                                resp = requests.get(url)
+                                resp.raise_for_status() # Cek apakah link error/digembok
+                                return resp.content
+                            
+                            with st.spinner("🔍 Sedang membongkar Google Sheet untuk mencari daftar Tahapan..."):
+                                excel_bytes = tarik_excel_google(url_xlsx)
+                                xls = pd.ExcelFile(io.BytesIO(excel_bytes))
+                                daftar_sheet = xls.sheet_names # Mengambil semua nama tab di bagian bawah Google Sheet
+                                
+                            if daftar_sheet:
+                                sheet_pilihan = st.selectbox("📑 Pilih Tahapan (Sheet) yang ingin ditarik:", daftar_sheet)
+                                
+                                # Simpan data sheet yang dipilih ke dalam memori
+                                if sheet_pilihan:
+                                    df_link_gsheet = pd.read_excel(xls, sheet_name=sheet_pilihan)
+                            else:
+                                st.error("❌ Tidak ada sheet yang ditemukan di dalam file tersebut.")
+                                
+                        except Exception as e:
+                            st.error(f"❌ Gagal membaca Google Sheet. Pastikan link tidak dikunci. Error: {e}")
+                    else:
+                        st.warning("⚠️ Link tidak valid. Coba paste ulang link Google Sheet yang benar.")
 
+            # --- TOMBOL EKSEKUSI ---
             if st.button(f"🚀 PROSES & GABUNGKAN LINK DPA", type="primary", use_container_width=True, key="btn_tab3"):
                 
-                # Validasi apakah user sudah memasukkan file/link
+                # Validasi Kosong
                 if sumber_data_dpa == "📂 Upload File Lokal (Excel/CSV)" and file_link is None:
                     st.error("⚠️ Mohon upload file Excel/CSV Link DPA terlebih dahulu!")
-                elif sumber_data_dpa == "🌐 Link Google Sheet (Public)" and link_dpa_input == "":
+                elif sumber_data_dpa == "🌐 Link Google Sheet (Otomatis Baca Sheet)" and link_dpa_input == "":
                     st.error("⚠️ Mohon paste Link Google Sheet terlebih dahulu!")
+                elif sumber_data_dpa == "🌐 Link Google Sheet (Otomatis Baca Sheet)" and df_link_gsheet.empty:
+                    st.error("⚠️ Menunggu data dari Google Sheet. Silakan pilih Tahapan (Sheet) yang benar.")
                 else:
-                    with st.spinner("Menyedot dan Menjahit Link DPA dengan Data Anggaran..."):
+                    with st.spinner("Menjahit Link DPA dengan Data Anggaran..."):
                         
-                        df_link = pd.DataFrame()
-                        
-                        # Proses membaca file atau link
                         try:
-                            if sumber_data_dpa == "📂 Upload File Lokal (Excel/CSV)" and file_link is not None:
+                            # Menyiapkan df_link sesuai sumber pilihan user
+                            if sumber_data_dpa == "📂 Upload File Lokal (Excel/CSV)":
                                 if file_link.name.endswith('.csv'):
                                     df_link = pd.read_csv(file_link)
                                 else:
                                     df_link = pd.read_excel(file_link)
-                            elif sumber_data_dpa == "🌐 Link Google Sheet (Public)" and link_dpa_input != "":
-                                url_csv = konversi_link_gsheet(link_dpa_input)
-                                if url_csv: 
-                                    df_link = pd.read_csv(url_csv)
-                                else:
-                                    st.error("❌ Link Google Sheet tidak valid.")
-                        except Exception as e:
-                            st.error(f"❌ Gagal menarik data DPA: {e}")
+                            else:
+                                df_link = df_link_gsheet.copy()
 
-                        # Jika berhasil ditarik, lanjut proses
-                        if not df_link.empty:
+                            # --- PROSES STANDAR DPA ---
                             df_link.columns = df_link.columns.astype(str).str.lower().str.strip()
                             
                             if 'kode sub' not in df_link.columns or 'url' not in df_link.columns:
-                                st.error("❌ Gagal! File/Link upload tidak memiliki kolom bernama 'kode sub' atau 'url'.")
+                                st.error(f"❌ Gagal! File/Sheet upload tidak memiliki kolom bernama 'kode sub' atau 'url'. Kolom yang terdeteksi: {list(df_link.columns)}")
                             else:
                                 df_link = df_link[['kode sub', 'url']].rename(columns={'kode sub': 'kode_sub_kegiatan'})
                                 df_link['kode_sub_kegiatan'] = df_link['kode_sub_kegiatan'].astype(str).str.strip()
@@ -659,7 +680,7 @@ elif menu_pilihan == "Rekap SIPD":
                                             pivot[t] = 0
                                     return pivot
 
-                                # ... Hierarki DPA ...
+                                # (Proses hierarki DPA l1 sampai l5)
                                 l1 = hitung_dpa(df_proses, ['kode_skpd', 'nama_skpd'], 1)
                                 l1['Kode'], l1['Uraian'], l1['Sort_Key'] = l1['kode_skpd'], l1['nama_skpd'], l1['kode_skpd']
                                 kumpulan_dpa.append(l1)
@@ -748,7 +769,6 @@ elif menu_pilihan == "Rekap SIPD":
                                     if lvl == 4: return ['background-color: #e2efda; font-weight: bold'] * len(row)
                                     return [''] * len(row)
 
-                                import io
                                 output_dpa = io.BytesIO()
                                 with pd.ExcelWriter(output_dpa, engine='openpyxl') as writer:
                                     df_excel_dpa.drop(columns=['Level']).style.apply(warna_baris_dpa, axis=1).to_excel(writer, index=False, sheet_name=f'Integrasi_DPA')
@@ -762,6 +782,9 @@ elif menu_pilihan == "Rekap SIPD":
                                     type="primary",
                                     key="dl_t3"
                                 )
+                        except Exception as e:
+                            st.error(f"❌ Terjadi kesalahan saat memproses data: {e}")
+                            
         # -------------------------------------------------------------------
         # TAB 4: EVALUASI KINERJA & REALISASI (HYBRID DENGAN PEMBERSIH ANGKA)
         # -------------------------------------------------------------------
@@ -923,6 +946,7 @@ elif menu_pilihan == "Rekap SIPD":
                             type="primary",
                             key="dl_t4"
                         )
+
 
 
 
