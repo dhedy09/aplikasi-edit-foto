@@ -55,8 +55,10 @@ with st.sidebar:
     
     menu_pilihan = option_menu(
         menu_title=None,
-        options=["Alat Excel", "Import SIPD", "Rekap SIPD"],
-        icons=["wrench-adjustable", "cloud-arrow-up-fill", "bar-chart-steps"], 
+        # KUNCI: Sisipkan teks pembatas di antara opsi
+        options=["Alat Excel", "─── DATABASE SIPD ───", "Import SIPD", "Rekap SIPD"],
+        # Gunakan ikon strip/kosong untuk pembatas (misal: 'grip-horizontal' atau 'dash')
+        icons=["wrench-adjustable", "grip-horizontal", "cloud-arrow-up-fill", "bar-chart-steps"], 
         default_index=0,
         key="menu_utama",
         styles={
@@ -760,6 +762,7 @@ elif menu_pilihan == "Rekap SIPD":
                             type="primary",
                             key="dl_t4"
                         )
+
 
 
 
