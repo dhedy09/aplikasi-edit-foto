@@ -452,7 +452,7 @@ elif menu_pilihan == "Rekap SIPD":
         # ==========================================
         # 3. PEMBUATAN TAB MENU (DITAMBAH TAB 4)
         # ==========================================
-        tab1, tab2, tab3, tab4 = st.tabs(["📑 Rekap Hierarki", "💰 Rekap Sumber Dana", "🔗 Integrasi Link DPA", "📈 Evaluasi Realisasi"])
+        tab1, tab2, tab3, tab4, tab5 = st.tabs(["📑 Rekap Hierarki", "💰 Rekap Sumber Dana", "🔗 Integrasi Link DPA", "📈 Evaluasi Realisasi", "🏢 Rekap Per Bidang"])
 
         # -------------------------------------------------------------------
         # TAB 1: REKAP HIERARKI TAHAPAN
@@ -946,6 +946,85 @@ elif menu_pilihan == "Rekap SIPD":
                             type="primary",
                             key="dl_t4"
                         )
+
+
+        # -------------------------------------------------------------------
+        # TAB 5: REKAPITULASI PER BIDANG URUSAN (AUTO SUMIFS)
+        # -------------------------------------------------------------------
+        with tab5:
+            st.info(f"💡 Menampilkan total pagu per Bidang Urusan: **{tahap_awal}** vs **{tahap_akhir}**")
+            
+            # Perhatikan key="btn_tab5" agar tidak bentrok dengan tombol di tab lain
+            if st.button("📊 PROSES REKAP BIDANG", type="primary", use_container_width=True, key="btn_tab5"):
+                with st.spinner("Menghitung total anggaran per bidang..."):
+                    
+                    try:
+                        # 1. Filter data hanya untuk tahap awal dan tahap akhir
+                        df_bidang = df_proses[df_proses['tahapan'].isin([tahap_awal, tahap_akhir])].copy()
+                        
+                        # 2. GROUP BY (Ini adalah versi Python dari SUMIFS / Pivot Table)
+                        # Kita kelompokkan berdasarkan Kode dan Nama Bidang Urusan
+                        rekap_bidang = df_bidang.groupby(['kode_bidang_urusan', 'nama_bidang_urusan', 'tahapan'])['pagu'].sum().reset_index()
+                        
+                        # 3. PIVOT (Jadikan tahapan sebagai kolom menyamping)
+                        pivot_bidang = rekap_bidang.pivot_table(
+                            index=['kode_bidang_urusan', 'nama_bidang_urusan'], 
+                            columns='tahapan', 
+                            values='pagu', 
+                            aggfunc='sum', 
+                            fill_value=0
+                        ).reset_index()
+                        
+                        # Pastikan kolom tahap_awal dan tahap_akhir ada (meski nilainya 0)
+                        for t in [tahap_awal, tahap_akhir]:
+                            if t not in pivot_bidang.columns:
+                                pivot_bidang[t] = 0
+                                
+                        # 4. Hitung Selisih
+                        pivot_bidang['Selisih'] = pivot_bidang[tahap_akhir] - pivot_bidang[tahap_awal]
+                        
+                        # Urutkan berdasarkan kode bidang
+                        pivot_bidang = pivot_bidang.sort_values('kode_bidang_urusan').reset_index(drop=True)
+                        
+                        # Ganti nama kolom biar lebih rapi di layar
+                        pivot_bidang.rename(columns={
+                            'kode_bidang_urusan': 'Kode Bidang',
+                            'nama_bidang_urusan': 'Nama Bidang Urusan',
+                            tahap_awal: f'Pagu {tahap_awal}',
+                            tahap_akhir: f'Pagu {tahap_akhir}'
+                        }, inplace=True)
+                        
+                        # 5. Tampilkan ke Layar
+                        st.success("✅ Rekapitulasi Per Bidang Selesai!")
+                        st.dataframe(
+                            pivot_bidang, 
+                            use_container_width=True,
+                            column_config={
+                                f'Pagu {tahap_awal}': st.column_config.NumberColumn(format="Rp %.0f"),
+                                f'Pagu {tahap_akhir}': st.column_config.NumberColumn(format="Rp %.0f"),
+                                "Selisih": st.column_config.NumberColumn(format="Rp %.0f")
+                            }
+                        )
+                        
+                        # 6. Tombol Download Excel
+                        import io
+                        output_bidang = io.BytesIO()
+                        with pd.ExcelWriter(output_bidang, engine='openpyxl') as writer:
+                            pivot_bidang.to_excel(writer, index=False, sheet_name='Rekap_Bidang')
+                        output_bidang.seek(0)
+                        
+                        st.download_button(
+                            label="📥 Download Excel (Rekap Bidang)", 
+                            data=output_bidang, 
+                            file_name=f"Rekap_Bidang_{nama_file_export}_{tahun_pilihan}.xlsx", 
+                            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", 
+                            type="primary",
+                            key="dl_tab5" # Pastikan key download juga unik
+                        )
+                        
+                    except Exception as e:
+                        st.error(f"❌ Terjadi kesalahan saat menghitung rekap bidang: {e}")
+
 
 
 
