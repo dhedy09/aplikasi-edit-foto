@@ -208,7 +208,7 @@ elif menu_pilihan == "Import SIPD":
         st.warning("⚠️ Silakan isi kotak **Nama Tahapan** terlebih dahulu untuk memunculkan tombol upload.")
 
 # -------------------------------------------------------------------------
-# --- MODUL 3: REKAP SIPD (VERSI FINAL - TAB HIERARKI, SUMBER DANA & LINK DPA) ---
+# --- MODUL 3: REKAP SIPD (VERSI FINAL - PENYERAGAMAN NOMENKLATUR OPD) ---
 # -------------------------------------------------------------------------
 elif menu_pilihan == "Rekap SIPD":
     st.title("📊 Rekapitulasi SIPD")
@@ -220,7 +220,6 @@ elif menu_pilihan == "Rekap SIPD":
         offset = 0
         limit = 1000
         while True:
-            # KUNCI: .order("id") memastikan penarikan data tidak acak/dobel
             res = supabase.table("rekap_sipd").select("*").order("id").range(offset, offset + limit - 1).execute()
             data_tarikan = res.data
             if not data_tarikan:
@@ -247,7 +246,7 @@ elif menu_pilihan == "Rekap SIPD":
         st.stop()
     else:
         # ==========================================
-        # 1. PERSIAPAN DATA DASAR (DIKUNCI)
+        # 1. PERSIAPAN DATA DASAR
         # ==========================================
         df = df_mentah.copy()
         df['pagu'] = pd.to_numeric(df['pagu'], errors='coerce').fillna(0)
@@ -289,11 +288,7 @@ elif menu_pilihan == "Rekap SIPD":
         tahapan_tersedia = [t for t in df_proses['tahapan'].unique() if t != ""]
         
         st.markdown("#### 📋 Urutan Tahapan & Acuan Selisih")
-        list_tahapan = st.multiselect(
-            "Susun urutan tahapan (Kiri ke Kanan):", 
-            options=tahapan_tersedia, 
-            default=tahapan_tersedia
-        )
+        list_tahapan = st.multiselect("Susun urutan tahapan (Kiri ke Kanan):", options=tahapan_tersedia, default=tahapan_tersedia)
         
         if not list_tahapan:
             st.error("⚠️ Pilih minimal 1 tahapan.")
@@ -306,6 +301,22 @@ elif menu_pilihan == "Rekap SIPD":
             tahap_awal = st.selectbox("📉 Tahapan Awal (Pengurang):", list_tahapan, index=0)
         with col_t3:
             tahap_akhir = st.selectbox("📈 Tahapan Akhir (Dikurangi):", list_tahapan, index=len(list_tahapan)-1)
+
+        # ==========================================
+        # 2.5 PENYERAGAMAN NOMENKLATUR (FITUR BARU)
+        # ==========================================
+        # Jika kode sama tapi nama berubah (misal nama SKPD ganti), kita paksa 
+        # nama di tahapan awal untuk mengikuti nama di tahapan akhir agar sejajar.
+        df_akhir_nama = df_proses[df_proses['tahapan'] == tahap_akhir]
+        
+        if not df_akhir_nama.empty:
+            # Buat kamus (dictionary) dari kode ke nama terbaru
+            dict_skpd = df_akhir_nama.drop_duplicates('kode_skpd').set_index('kode_skpd')['nama_skpd'].to_dict()
+            dict_sub = df_akhir_nama.drop_duplicates('kode_sub_kegiatan').set_index('kode_sub_kegiatan')['nama_sub_kegiatan'].to_dict()
+            
+            # Terapkan kamus ke seluruh data (timpa nama lama dengan nama baru jika kodenya sama)
+            df_proses['nama_skpd'] = df_proses['kode_skpd'].map(dict_skpd).fillna(df_proses['nama_skpd'])
+            df_proses['nama_sub_kegiatan'] = df_proses['kode_sub_kegiatan'].map(dict_sub).fillna(df_proses['nama_sub_kegiatan'])
 
         # ==========================================
         # 3. PEMBUATAN TAB MENU
@@ -443,7 +454,7 @@ elif menu_pilihan == "Rekap SIPD":
                     st.download_button("📥 Download Excel (Sumber Dana)", output_excel_sd, f"SumberDana_{nama_file_sd}_{tahun_pilihan}.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", key="dl_t2")
 
         # -------------------------------------------------------------------
-        # TAB 3: INTEGRASI LINK DPA (FITUR BARU)
+        # TAB 3: INTEGRASI LINK DPA
         # -------------------------------------------------------------------
         with tab3:
             st.info(f"💡 Menampilkan perbandingan: **{tahap_awal}** vs **{tahap_akhir}**")
@@ -454,7 +465,6 @@ elif menu_pilihan == "Rekap SIPD":
                     st.error("⚠️ Mohon upload file Excel/CSV Link DPA terlebih dahulu!")
                 else:
                     with st.spinner("Menjahit Link DPA dengan Data Anggaran..."):
-                        # 1. BACA FILE UPLOAD
                         if file_link.name.endswith('.csv'):
                             df_link = pd.read_csv(file_link)
                         else:
@@ -462,16 +472,14 @@ elif menu_pilihan == "Rekap SIPD":
                         
                         df_link.columns = df_link.columns.str.lower().str.strip()
                         if 'kode sub' not in df_link.columns or 'url' not in df_link.columns:
-                            st.error("❌ Gagal! File upload tidak memiliki kolom bernama 'kode sub' atau 'url'. Silakan perbaiki file Anda.")
+                            st.error("❌ Gagal! File upload tidak memiliki kolom bernama 'kode sub' atau 'url'.")
                         else:
                             df_link = df_link[['kode sub', 'url']].rename(columns={'kode sub': 'kode_sub_kegiatan'})
                             df_link['kode_sub_kegiatan'] = df_link['kode_sub_kegiatan'].astype(str).str.strip()
                             df_link['url'] = df_link['url'].fillna("")
 
-                            # 2. PROSES HIERARKI KHUSUS TAB 3 (HANYA 2 TAHAPAN)
                             kumpulan_dpa = []
                             def hitung_dpa(df_input, list_group, level_num):
-                                # Filter hanya mengambil tahap awal dan akhir
                                 df_filter = df_input[df_input['tahapan'].isin([tahap_awal, tahap_akhir])]
                                 grouped = df_filter.groupby(list_group + ['tahapan'])['pagu'].sum().reset_index()
                                 pivot = grouped.pivot_table(index=list_group, columns='tahapan', values='pagu', aggfunc='sum', fill_value=0).reset_index()
@@ -481,7 +489,6 @@ elif menu_pilihan == "Rekap SIPD":
                                         pivot[t] = 0
                                 return pivot
 
-                            # L1-L4
                             l1 = hitung_dpa(df_proses, ['kode_skpd', 'nama_skpd'], 1)
                             l1['Kode'], l1['Uraian'], l1['Sort_Key'] = l1['kode_skpd'], l1['nama_skpd'], l1['kode_skpd']
                             kumpulan_dpa.append(l1)
@@ -504,14 +511,12 @@ elif menu_pilihan == "Rekap SIPD":
                                 l4['Kode'], l4['Uraian'], l4['Sort_Key'] = l4['kode_kegiatan'], l4['nama_kegiatan'], l4['kode_skpd'] + "|" + l4['kode_urusan'] + "|" + l4['kode_program'] + "|" + l4['kode_kegiatan']
                                 kumpulan_dpa.append(l4)
 
-                            # L5 (Tempat masuknya Sumber Dana & Link)
                             df_l5 = df_proses[df_proses['kode_sub_kegiatan'] != ""]
                             if not df_l5.empty:
                                 l5 = hitung_dpa(df_l5, ['kode_skpd', 'kode_urusan', 'kode_program', 'kode_kegiatan', 'kode_sub_kegiatan', 'nama_sub_kegiatan'], 5)
                                 l5['Kode'], l5['Uraian'] = l5['kode_sub_kegiatan'], l5['nama_sub_kegiatan']
                                 l5['Sort_Key'] = l5['kode_skpd'] + "|" + l5['kode_urusan'] + "|" + l5['kode_program'] + "|" + l5['kode_kegiatan'] + "|" + l5['kode_sub_kegiatan']
 
-                                # Sumber Dana bersumber dari Tahap Sesudah (Tahap Akhir)
                                 df_sd = df_proses[df_proses['tahapan'] == tahap_akhir]
                                 sd_grouped = df_sd[df_sd['pagu'] > 0].groupby(['kode_sub_kegiatan', 'nama_sumber_dana'])['pagu'].sum().reset_index()
                                 if not sd_grouped.empty:
@@ -520,22 +525,16 @@ elif menu_pilihan == "Rekap SIPD":
                                     sd_final.rename(columns={'teks_sd': 'Rincian Sumber Dana'}, inplace=True)
                                     l5 = pd.merge(l5, sd_final, on='kode_sub_kegiatan', how='left')
                                 
-                                # Menjahit Link DPA dari Excel
                                 l5 = pd.merge(l5, df_link, on='kode_sub_kegiatan', how='left')
                                 l5.rename(columns={'url': 'Link DPA'}, inplace=True)
                                 kumpulan_dpa.append(l5)
 
                             df_rekap_dpa = pd.concat(kumpulan_dpa, ignore_index=True)
                             
-                            # --- PERBAIKAN BUG KEYERROR ---
-                            # Kita salin angkanya secara eksplisit, bukan di-rename. 
-                            # Ini aman meskipun tahap_awal dan tahap_akhir adalah tahapan yang sama.
                             df_rekap_dpa['Anggaran Sebelum'] = df_rekap_dpa[tahap_awal] if tahap_awal in df_rekap_dpa.columns else 0
                             df_rekap_dpa['Anggaran Sesudah'] = df_rekap_dpa[tahap_akhir] if tahap_akhir in df_rekap_dpa.columns else 0
                             df_rekap_dpa['Selisih'] = df_rekap_dpa['Anggaran Sesudah'] - df_rekap_dpa['Anggaran Sebelum']
-                            # ------------------------------
                             
-                            # Isi kolom kosong dengan string kosong agar rapi
                             for col in ['Rincian Sumber Dana', 'Link DPA']:
                                 if col not in df_rekap_dpa.columns:
                                     df_rekap_dpa[col] = ""
@@ -543,11 +542,9 @@ elif menu_pilihan == "Rekap SIPD":
 
                             df_rekap_dpa = df_rekap_dpa.sort_values('Sort_Key').reset_index(drop=True)
 
-                            # --- SUSUNAN KOLOM SESUAI PERMINTAAN ---
                             kolom_final_dpa = ['Link DPA', 'Kode', 'Uraian', 'Rincian Sumber Dana', 'Anggaran Sebelum', 'Anggaran Sesudah', 'Selisih', 'Level']
                             df_hasil_dpa = df_rekap_dpa[kolom_final_dpa].copy()
 
-                            # 3. TAMPILAN WEB (STREAMLIT)
                             df_tampil_dpa = df_hasil_dpa.drop(columns=['Level'])
                             
                             st.success(f"✅ Integrasi Link DPA Berhasil!")
@@ -556,18 +553,14 @@ elif menu_pilihan == "Rekap SIPD":
                                 use_container_width=True, 
                                 height=500,
                                 column_config={
-                                    "Link DPA": st.column_config.LinkColumn(
-                                        "Link DPA", display_text="🔗 Buka DPA"
-                                    ),
+                                    "Link DPA": st.column_config.LinkColumn("Link DPA", display_text="🔗 Buka DPA"),
                                     "Anggaran Sebelum": st.column_config.NumberColumn(format="%.0f"),
                                     "Anggaran Sesudah": st.column_config.NumberColumn(format="%.0f"),
                                     "Selisih": st.column_config.NumberColumn(format="%.0f")
                                 }
                             )
 
-                            # 4. EXPORT EXCEL DENGAN EMBEDDED HYPERLINK PATEN
                             def format_excel_dpa(row):
-                                # Buat formula hyperlink Excel sungguhan
                                 if pd.notna(row['Link DPA']) and str(row['Link DPA']).startswith("http"):
                                     row['Link DPA'] = f'=HYPERLINK("{row["Link DPA"]}", "🔗 Buka DPA")'
                                 else:
@@ -599,6 +592,7 @@ elif menu_pilihan == "Rekap SIPD":
                                 type="primary",
                                 key="dl_t3"
                             )
+
 
 
 
