@@ -2,6 +2,7 @@ import streamlit as st
 import openpyxl
 import io
 import re
+import time
 from datetime import datetime
 import pandas as pd
 from streamlit_option_menu import option_menu
@@ -876,6 +877,7 @@ elif menu_pilihan == "Rekap SIPD":
                             type="primary",
                             key="dl_t4"
                         )
+
 
 
 
