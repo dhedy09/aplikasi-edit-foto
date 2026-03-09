@@ -28,7 +28,7 @@ except Exception as e:
     st.error("⚠️ Gagal terhubung ke Database. Pastikan SUPABASE_URL dan SUPABASE_KEY sudah ada di Streamlit Secrets!")
     st.stop()
 
-#@st.cache_data(ttl=1000)
+@st.cache_data(ttl=1000)
 def load_mapping_sotk(tahun):
     res = supabase.table("mapping_sotk").select("kode_lama", "kode_baru").eq("tahun", tahun).execute()
     # st.write("DEBUG mapping_sotk loader:", tahun, res.data)
@@ -615,7 +615,7 @@ elif menu_pilihan == "Rekap SIPD":
                             "tahun": tahun_pilihan,
                             "username": st.session_state.get('username', '')
                         }]).execute()
-                        #load_mapping_sotk.clear()
+                        load_mapping_sotk.clear()
                         st.session_state["mapping_alert"] = "sukses"
                         st.session_state.mapping_sotk = load_mapping_sotk(tahun_pilihan)
                         st.rerun()
@@ -630,14 +630,14 @@ elif menu_pilihan == "Rekap SIPD":
                     with col_hapus:
                         if st.button("🗑️ Hapus", key=f"hapus_sotk_{k_lama}_{k_baru}_{idx}"):
                             supabase.table("mapping_sotk").delete().eq("kode_lama", k_lama).eq("tahun", tahun_pilihan).execute()
-                            #load_mapping_sotk.clear()
+                            load_mapping_sotk.clear()
                             st.session_state["mapping_alert"] = "hapus"
                             st.session_state.mapping_sotk = load_mapping_sotk(tahun_pilihan)
                             st.rerun()
                 # Tombol hapus semua mapping - di luar loop!
                 if st.button("🧹 Hapus Semua Mapping", key="hapus_semua_sotk_db"):
                     supabase.table("mapping_sotk").delete().eq("tahun", tahun_pilihan).execute()
-                    #load_mapping_sotk.clear()
+                    load_mapping_sotk.clear()
                     st.session_state["mapping_alert"] = "hapus_semua"
                     st.session_state.mapping_sotk = {}
                     st.rerun()
@@ -1526,3 +1526,4 @@ elif menu_pilihan == "Rekap SIPD":
                 file_name=f"Rekap_Jenis_Belanja_{tahun_pilihan}.xlsx",
                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
             )
+
