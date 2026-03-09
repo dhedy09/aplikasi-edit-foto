@@ -97,7 +97,7 @@ with st.sidebar:
 # --- MODUL 1: ALAT EXCEL ---
 # -------------------------------------------------------------------------
 if menu_pilihan == "Alat Excel":
-    st.title("🛠️ Manipulasi Petik & Pembersih Karakter")
+    st.title("🛠️ Alat Excel")
     st.write("Gunakan alat ini untuk merapikan data Dapodik/SIPD dalam satu kali jalan.")
     
     file_excel = st.file_uploader("📥 Unggah File Excel (.xlsx)", type=["xlsx"], key="excel_upload")
@@ -162,7 +162,7 @@ if menu_pilihan == "Alat Excel":
 # --- MODUL 2: IMPORT SIPD KE DATABASE ---
 # -------------------------------------------------------------------------
 elif menu_pilihan == "Import SIPD":
-    st.title("☁️ Upload SIPD ke Database Cloud")
+    st.title("📥 Import Data SIPD")
     st.write("Data Excel tarikan SIPD akan otomatis diformat dan disimpan ke server Supabase Anda secara permanen.")
     
     col_upload, col_tahapan = st.columns([2, 1])
@@ -778,6 +778,7 @@ elif menu_pilihan == "Rekap SIPD":
                             type="primary",
                             key="dl_t4"
                         )
+
 
 
 
