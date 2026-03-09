@@ -1021,13 +1021,13 @@ elif menu_pilihan == "Rekap SIPD":
 
                             df_map.columns = df_map.columns.astype(str).str.lower().str.strip()
                             
-                            # ✨ MAGIC AUTO-RENAME untuk jaga-jaga
+                            # ✨ MAGIC AUTO-RENAME
                             if 'code' in df_map.columns:
                                 df_map.rename(columns={'code': 'kode sub'}, inplace=True)
                             if 'bidang' in df_map.columns:
                                 df_map.rename(columns={'bidang': 'penanggung jawab'}, inplace=True)
                             
-                            # Cek kolom wajib (SUDAH DIKOREKSI)
+                            # Cek kolom wajib
                             if 'kode sub' not in df_map.columns or 'penanggung jawab' not in df_map.columns:
                                 st.error(f"❌ Ralat! File pemetaan harus memiliki kolom 'kode sub' dan 'penanggung jawab'. Kolom yang terdeteksi: {list(df_map.columns)}")
                             else:
@@ -1074,6 +1074,15 @@ elif menu_pilihan == "Rekap SIPD":
                                     tahap_awal: f'Pagu {tahap_awal}',
                                     tahap_akhir: f'Pagu {tahap_akhir}'
                                 }, inplace=True)
+                                
+                                # 🌟 TAMBAHAN BARU: BARIS TOTAL KESELURUHAN 🌟
+                                baris_total = pd.DataFrame([{
+                                    'Penanggung Jawab / Bidang': 'TOTAL KESELURUHAN',
+                                    f'Pagu {tahap_awal}': pivot_bidang[f'Pagu {tahap_awal}'].sum(),
+                                    f'Pagu {tahap_akhir}': pivot_bidang[f'Pagu {tahap_akhir}'].sum(),
+                                    'Selisih': pivot_bidang['Selisih'].sum()
+                                }])
+                                pivot_bidang = pd.concat([pivot_bidang, baris_total], ignore_index=True)
                                 
                                 st.success("✅ Rekapitulasi Per Bidang Selesai!")
                                 st.dataframe(
