@@ -141,71 +141,136 @@ if menu_pilihan == "Alat Excel":
                         st.error(f"❌ Terjadi kesalahan: {e}")
 
 # -------------------------------------------------------------------------
-# --- MODUL 2: IMPORT SIPD KE DATABASE ---
+# --- MODUL 2: IMPORT DATA SIPD & MANAJEMEN DATABASE ---
 # -------------------------------------------------------------------------
 elif menu_pilihan == "Import SIPD":
-    st.title("📥 Import Data SIPD")
-    st.write("Data Excel tarikan SIPD akan otomatis diformat dan disimpan ke server Supabase Anda secara permanen.")
-    
-    col_upload, col_tahapan = st.columns([2, 1])
-    
-    with col_upload:
-        file_sipd = st.file_uploader("Unggah Excel Tarikan SIPD (.xlsx / .xls)", type=["xlsx", "xls"])
+    st.title("📥 Import & Manajemen Data SIPD")
+    st.write("Unggah file DPA/RKA dari SIPD (Format Excel/CSV) ke dalam database terpusat.")
+
+    # --- BAGIAN A: IMPORT DATA ---
+    st.markdown("### ➕ Tambah Data Baru")
+    with st.form("form_import"):
+        col1, col2 = st.columns(2)
+        with col1:
+            tahun_input = st.selectbox("Tahun Anggaran", ["2024", "2025", "2026", "2027"])
+        with col2:
+            tahapan_input = st.selectbox("Tahapan SIPD", ["Murni", "Pergeseran", "Perubahan"])
         
-    with col_tahapan:
-        nama_tahapan = st.text_input("🏷️ Nama Tahapan", placeholder="Cth: APBD Pokok 2026")
+        # Mendukung Excel DAN CSV (Agar file backup bisa di-upload ulang)
+        file_upload = st.file_uploader("Pilih File Excel / CSV Backup", type=["xlsx", "xls", "csv"])
         
-    if file_sipd and nama_tahapan:
-        if st.button("⚡ UPLOAD KE DATABASE SUPABASE", type="primary", use_container_width=True):
-            with st.spinner("🚀 Sedang menyedot dan mengirim data ke cloud... (Mohon tunggu)"):
-                try:
-                    df_sipd = pd.read_excel(file_sipd)
-                    df_sipd['TAHAPAN'] = nama_tahapan
+        submit_import = st.form_submit_button("🚀 Upload & Simpan ke Database")
+
+    if submit_import and file_upload is not None:
+        with st.spinner("Membaca file dan menyinkronkan dengan database..."):
+            try:
+                # 1. Baca file (Deteksi otomatis Excel atau CSV)
+                if file_upload.name.endswith('.csv'):
+                    df = pd.read_csv(file_upload)
+                else:
+                    df = pd.read_excel(file_upload)
+                
+                df.columns = df.columns.astype(str).str.lower().str.strip()
+
+                # 2. FITUR PINTAR: Jika ini adalah file Backup CSV, buang kolom ID agar tidak bentrok
+                if 'id' in df.columns:
+                    df = df.drop(columns=['id'])
+                if 'created_at' in df.columns:
+                    df = df.drop(columns=['created_at'])
+
+                # (Di sini Anda bisa memasukkan logika pembersihan kolom standar Anda yang sudah ada)
+                # Contoh: df = df.rename(columns={'kode sub kegiatan': 'kode_sub_kegiatan', ...})
+                
+                # Tambahkan Tahun dan Tahapan dari form
+                df['tahun'] = tahun_input
+                df['tahapan'] = tahapan_input
+                
+                # Ubah ke dictionary untuk Supabase
+                data_insert = df.to_dict(orient='records')
+                
+                # Pecah jadi batch agar Supabase tidak kewalahan (max 1000 per insert)
+                batch_size = 1000
+                for i in range(0, len(data_insert), batch_size):
+                    batch = data_insert[i:i+batch_size]
+                    supabase.table("rekap_sipd").insert(batch).execute()
                     
-                    pemetaan_kolom = {
-                        "NO": "no_urut",
-                        "TAHUN": "tahun",
-                        "KODE URUSAN": "kode_urusan",
-                        "NAMA URUSAN": "nama_urusan",
-                        "KODE SKPD": "kode_skpd",
-                        "NAMA SKPD": "nama_skpd",
-                        "KODE SUB UNIT": "kode_sub_unit",
-                        "NAMA SUB UNIT": "nama_sub_unit",
-                        "KODE BIDANG URUSAN": "kode_bidang_urusan",
-                        "NAMA BIDANG URUSAN": "nama_bidang_urusan",
-                        "KODE PROGRAM": "kode_program",
-                        "NAMA PROGRAM": "nama_program",
-                        "KODE KEGIATAN": "kode_kegiatan",
-                        "NAMA KEGIATAN": "nama_kegiatan",
-                        "KODE SUB KEGIATAN": "kode_sub_kegiatan",
-                        "NAMA SUB KEGIATAN": "nama_sub_kegiatan",
-                        "KODE SUMBER DANA": "kode_sumber_dana",
-                        "NAMA SUMBER DANA": "nama_sumber_dana",
-                        "KODE REKENING": "kode_rekening",
-                        "NAMA REKENING": "nama_rekening",
-                        "PAKET/KELOMPOK": "paket_kelompok",
-                        "NAMA PAKET/KELOMPOK": "nama_paket_kelompok",
-                        "PAGU": "pagu",
-                        "TAHAPAN": "tahapan"
-                    }
-                    df_sipd.rename(columns=pemetaan_kolom, inplace=True)
-                    df_sipd = df_sipd.astype(object).where(pd.notnull(df_sipd), None)
+                st.success(f"✅ Selesai! {len(df)} baris data {tahapan_input} {tahun_input} berhasil masuk ke database.")
+            
+            except Exception as e:
+                st.error(f"❌ Terjadi kesalahan saat memproses file: {e}")
+
+    st.markdown("---")
+
+    # --- BAGIAN B: ZONA MANAJEMEN DATABASE ---
+    st.markdown("### ⚙️ Manajemen Database")
+    with st.expander("⚠️ Buka Panel Zona Berbahaya (Backup & Hapus Data)"):
+        
+        # 1. FITUR BACKUP (DOWNLOAD CSV)
+        st.markdown("#### 1. 📥 Backup Seluruh Database")
+        st.caption("Download seluruh data di database menjadi file CSV ringan. File ini bisa di-upload kembali ke aplikasi jika dibutuhkan.")
+        
+        if st.button("📦 Buat File Backup CSV", type="primary"):
+            with st.spinner("Menarik seluruh data dari server..."):
+                # Tarik data dengan metode batching (sama seperti di modul rekap)
+                semua_data = []
+                offset = 0
+                limit = 1000
+                while True:
+                    res = supabase.table("rekap_sipd").select("*").range(offset, offset + limit - 1).execute()
+                    data_tarikan = res.data
+                    if not data_tarikan: break
+                    semua_data.extend(data_tarikan)
+                    if len(data_tarikan) < limit: break
+                    offset += limit
+                
+                if len(semua_data) > 0:
+                    df_backup = pd.DataFrame(semua_data)
+                    csv_data = df_backup.to_csv(index=False).encode('utf-8')
                     
-                    data_siap_kirim = df_sipd.to_dict(orient='records')
-                    jumlah_data = len(data_siap_kirim)
-                    ukuran_cicilan = 1000
-                    
-                    for i in range(0, jumlah_data, ukuran_cicilan):
-                        potongan_data = data_siap_kirim[i : i + ukuran_cicilan]
-                        supabase.table("rekap_sipd").insert(potongan_data).execute()
-                    
-                    st.success(f"✅ LUAR BIASA! {jumlah_data} baris data '{nama_tahapan}' berhasil mendarat dengan selamat di Database Supabase!")
-                    
-                except Exception as e:
-                    st.error(f"❌ Gagal mengirim ke database: {e}")
-                    
-    elif file_sipd and not nama_tahapan:
-        st.warning("⚠️ Silakan isi kotak **Nama Tahapan** terlebih dahulu untuk memunculkan tombol upload.")
+                    st.success(f"✅ Backup siap! Total: {len(df_backup)} baris data.")
+                    st.download_button(
+                        label="⬇️ Download Backup.csv",
+                        data=csv_data,
+                        file_name=f"Backup_Database_SIPD.csv",
+                        mime="text/csv"
+                    )
+                else:
+                    st.warning("Database masih kosong. Tidak ada yang bisa di-backup.")
+        
+        st.markdown("<hr style='border: 1px dashed #ccc;'>", unsafe_allow_html=True)
+        
+        # 2. FITUR HAPUS PARSIAL (DELETE PER KATEGORI)
+        st.markdown("#### 2. 🗑️ Hapus Data Parsial (Spesifik)")
+        col_del1, col_del2 = st.columns(2)
+        with col_del1:
+            del_tahun = st.selectbox("Pilih Tahun yang mau dihapus:", ["2024", "2025", "2026", "2027"], key="del_thn")
+        with col_del2:
+            del_tahapan = st.selectbox("Pilih Tahapan yang mau dihapus:", ["Murni", "Pergeseran", "Perubahan"], key="del_thp")
+        
+        if st.button(f"🗑️ Hapus Data {del_tahapan} {del_tahun}"):
+            with st.spinner("Menghapus data..."):
+                # Eksekusi Delete
+                res_del = supabase.table("rekap_sipd").delete().eq("tahun", del_tahun).eq("tahapan", del_tahapan).execute()
+                st.success(f"✅ Data {del_tahapan} Tahun {del_tahun} berhasil dihapus dari database!")
+        
+        st.markdown("<hr style='border: 1px dashed #ccc;'>", unsafe_allow_html=True)
+        
+        # 3. FITUR KIAMAT (TRUNCATE & RESET IDENTITY)
+        st.markdown("#### 3. 🔥 Factory Reset (Kosongkan Database)")
+        st.error("Peringatan: Tindakan ini akan menghancurkan SELURUH data di dalam database dan me-reset urutan ID kembali ke 1. Lakukan backup terlebih dahulu!")
+        
+        konfirmasi_kiamat = st.text_input("Ketik 'HAPUS TOTAL' (tanpa tanda kutip) untuk membuka kunci tombol kiamat:")
+        
+        if konfirmasi_kiamat == "HAPUS TOTAL":
+            if st.button("🚨 EKSEKUSI TRUNCATE & RESET ID", type="primary"):
+                with st.spinner("Menghancurkan seluruh data dan mereset ID..."):
+                    try:
+                        # Memanggil fungsi RPC yang sudah kita buat di Supabase tadi
+                        supabase.rpc('truncate_rekap_sipd').execute()
+                        st.success("💥 BAAAM! Database berhasil dikosongkan total dan ID telah di-reset ke 1.")
+                        st.balloons()
+                    except Exception as e:
+                        st.error(f"❌ Gagal mengeksekusi Truncate: {e}. Pastikan Anda sudah membuat Fungsi RPC 'truncate_rekap_sipd' di SQL Editor Supabase.")
 
 # -------------------------------------------------------------------------
 # --- MODUL 3: REKAP SIPD (VERSI FINAL - MERGER DPA & REALISASI) ---
@@ -760,6 +825,7 @@ elif menu_pilihan == "Rekap SIPD":
                             type="primary",
                             key="dl_t4"
                         )
+
 
 
 
