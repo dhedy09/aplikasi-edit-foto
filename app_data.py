@@ -9,6 +9,8 @@ import pandas as pd
 from streamlit_option_menu import option_menu
 from supabase import create_client, Client
 from collections import defaultdict
+import plotly.express as px
+import plotly.graph_objects as go
 
 # ==========================================
 # 1. PENGATURAN HALAMAN
@@ -661,7 +663,7 @@ elif menu_pilihan == "Rekap SIPD":
         # ==========================================
         # 3. PEMBUATAN TAB MENU
         # ==========================================
-        tab1, tab2, tab3, tab4, tab5 = st.tabs(["📑 Rekap Hierarki", "💰 Rekap Sumber Dana", "🔗 Integrasi Link DPA", "📈 Evaluasi Realisasi", "🏢 Rekap Per Bidang"])
+        tab0, tab1, tab2, tab3, tab4, tab5 = st.tabs(["📊 Dashboard", "📑 Rekap Hierarki", "💰 Rekap Sumber Dana", "🔗 Integrasi Link DPA", "📈 Evaluasi Realisasi", "🏢 Rekap Per Bidang"])
 
         # -------------------------------------------------------------------
         # TAB 1: REKAP HIERARKI TAHAPAN (MENGGUNAKAN FUNGSI REUSABLE)
@@ -1192,3 +1194,4 @@ elif menu_pilihan == "Rekap SIPD":
                                 
                         except Exception as e:
                             st.error(f"❌ Terjadi kesalahan saat memproses data: {e}")
+
