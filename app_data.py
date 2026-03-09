@@ -673,8 +673,8 @@ elif menu_pilihan == "Rekap SIPD":
             "📦 Rekap Kode Rekening"   # <--- Tambahan baru!
         ])
 
-        # -------------------------------------------------------------------
-        # TAB 0: DASHBOARD RINGKASAN (OTOMATIS TANPA KLIK PROSES)
+                # -------------------------------------------------------------------
+        # TAB 0: DASHBOARD RINGKASAN + PENCARIAN SUB KEGIATAN
         # -------------------------------------------------------------------
         with tab0:
             st.markdown("### 📊 Dashboard Ringkasan Anggaran")
@@ -841,6 +841,42 @@ elif menu_pilihan == "Rekap SIPD":
                 )
             else:
                 st.info("Tidak cukup data untuk menampilkan tabel selisih.")
+
+            st.markdown("---")
+            # ---------- PENCARIAN SUB KEGIATAN, KODE, SKPD ----------
+            st.markdown("## 🔍 Cari Sub Kegiatan, Kode Sub, atau SKPD")
+            keyword = st.text_input("Masukkan kata kunci pencarian (nama sub kegiatan, kode sub, SKPD):", "")
+            if keyword:
+                df_search = df_dash.copy()
+                mask = (
+                    df_search['nama_sub_kegiatan'].str.contains(keyword, case=False, na=False) |
+                    df_search['kode_sub_kegiatan'].str.contains(keyword, case=False, na=False) |
+                    df_search['nama_skpd'].str.contains(keyword, case=False, na=False)
+                )
+                hasil = df_search[mask].copy()
+                st.success(f"Menemukan {len(hasil)} baris hasil pencarian.")
+                kolom_tampil = [
+                    'kode_sub_kegiatan', 'nama_sub_kegiatan', 'nama_skpd',
+                    'tahapan', 'pagu', 'nama_sumber_dana'
+                ]
+                st.dataframe(
+                    hasil[kolom_tampil].sort_values('pagu', ascending=False),
+                    use_container_width=True,
+                    column_config={
+                        'pagu': st.column_config.NumberColumn(format="Rp %.0f"),
+                    }
+                )
+                # Tambahkan tombol download CSV jika perlu
+                if len(hasil) > 0:
+                    hasil_csv = hasil[kolom_tampil].to_csv(index=False).encode('utf-8')
+                    st.download_button(
+                        label="📥 Download Hasil Pencarian (CSV)",
+                        data=hasil_csv,
+                        file_name="Hasil_Pencarian_SubKegiatan.csv",
+                        mime="text/csv"
+                    )
+            else:
+                st.info("Masukkan kata kunci untuk mencari sub kegiatan, kode, atau SKPD.")
 
         # -------------------------------------------------------------------
         # TAB 1: REKAP HIERARKI TAHAPAN (MENGGUNAKAN FUNGSI REUSABLE)
@@ -1426,6 +1462,7 @@ elif menu_pilihan == "Rekap SIPD":
                     file_name=f"Rekap_Kode_Rekening_{tahun_pilihan}_{tahap_akhir}.xlsx",
                     mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
                 )
+
 
 
 
