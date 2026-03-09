@@ -267,13 +267,11 @@ elif menu_pilihan == "Import SIPD":
         
         st.markdown("<hr style='border: 1px dashed #ccc;'>", unsafe_allow_html=True)
         
-        # 2. FITUR HAPUS PARSIAL (DROPDOWN BACA DATABASE)
+        # 2. FITUR HAPUS PARSIAL (DROPDOWN DINAMIS BERJENJANG)
         st.markdown("#### 2. 🗑️ Hapus Data Parsial (Sesuai Database)")
         
-        unique_years = []
-        unique_tahapan = []
         try:
-            # Tarik sampel tahun dan tahapan untuk dropdown
+            # Tarik sampel tahun dan tahapan dari database
             semua_opsi = []
             offset = 0
             limit = 1000
@@ -287,25 +285,32 @@ elif menu_pilihan == "Import SIPD":
             if semua_opsi:
                 df_opsi = pd.DataFrame(semua_opsi)
                 unique_years = sorted(df_opsi['tahun'].dropna().unique().tolist())
-                unique_tahapan = sorted(df_opsi['tahapan'].dropna().unique().tolist())
+            else:
+                unique_years = []
         except Exception as e:
-            pass
+            unique_years = []
+            df_opsi = pd.DataFrame()
 
-        if not unique_years or not unique_tahapan:
+        if not unique_years:
             st.info("Database masih kosong, belum ada data yang bisa dihapus.")
         else:
             col_del1, col_del2 = st.columns(2)
             with col_del1:
                 del_tahun = st.selectbox("Pilih Tahun:", unique_years, key="del_thn")
-            with col_del2:
-                del_tahapan = st.selectbox("Pilih Tahapan:", unique_tahapan, key="del_thp")
             
-            if st.button(f"🗑️ Hapus Data {del_tahapan} {del_tahun}"):
-                with st.spinner("Menghapus data..."):
-                    res_del = supabase.table("rekap_sipd").delete().eq("tahun", del_tahun).eq("tahapan", del_tahapan).execute()
-                    st.success(f"✅ Data {del_tahapan} Tahun {del_tahun} berhasil dihapus dari database!")
-                    time.sleep(1) 
-                    st.rerun() 
+            with col_del2:
+                # LOGIKA CERDAS: Filter Tahapan hanya untuk Tahun yang dipilih di atas!
+                tahapan_tersedia = sorted(df_opsi[df_opsi['tahun'] == del_tahun]['tahapan'].dropna().unique().tolist())
+                
+                del_tahapan = st.selectbox(f"Pilih Tahapan di {del_tahun}:", tahapan_tersedia, key="del_thp")
+            
+            if del_tahapan: # Pastikan tahapan ada isinya sebelum memunculkan tombol
+                if st.button(f"🗑️ Hapus Data {del_tahapan} {del_tahun}"):
+                    with st.spinner("Menghapus data..."):
+                        res_del = supabase.table("rekap_sipd").delete().eq("tahun", del_tahun).eq("tahapan", del_tahapan).execute()
+                        st.success(f"✅ Data {del_tahapan} Tahun {del_tahun} berhasil dihapus dari database!")
+                        time.sleep(1) 
+                        st.rerun() 
         
         st.markdown("<hr style='border: 1px dashed #ccc;'>", unsafe_allow_html=True)
         
@@ -877,6 +882,7 @@ elif menu_pilihan == "Rekap SIPD":
                             type="primary",
                             key="dl_t4"
                         )
+
 
 
 
