@@ -666,6 +666,175 @@ elif menu_pilihan == "Rekap SIPD":
         tab0, tab1, tab2, tab3, tab4, tab5 = st.tabs(["📊 Dashboard", "📑 Rekap Hierarki", "💰 Rekap Sumber Dana", "🔗 Integrasi Link DPA", "📈 Evaluasi Realisasi", "🏢 Rekap Per Bidang"])
 
         # -------------------------------------------------------------------
+        # TAB 0: DASHBOARD RINGKASAN (OTOMATIS TANPA KLIK PROSES)
+        # -------------------------------------------------------------------
+        with tab0:
+            st.markdown("### 📊 Dashboard Ringkasan Anggaran")
+            
+            # ---------- DATA UNTUK DASHBOARD ----------
+            df_dash = df_proses.copy()
+            
+            # Hitung metrik per tahapan
+            metrik_per_tahapan = df_dash.groupby('tahapan')['pagu'].sum()
+            
+            pagu_akhir = metrik_per_tahapan.get(tahap_akhir, 0)
+            pagu_awal = metrik_per_tahapan.get(tahap_awal, 0)
+            selisih_total = pagu_akhir - pagu_awal
+            
+            jumlah_skpd = df_dash[df_dash['tahapan'] == tahap_akhir]['kode_skpd'].nunique()
+            jumlah_sub_keg = df_dash[df_dash['tahapan'] == tahap_akhir]['kode_sub_kegiatan'].nunique()
+            jumlah_program = df_dash[df_dash['tahapan'] == tahap_akhir]['kode_program'].nunique()
+
+            # ---------- METRIC CARDS ----------
+            st.markdown(f"##### 📅 Tahun Anggaran: **{tahun_pilihan}** | Acuan Tahapan Akhir: **{tahap_akhir}**")
+            
+            m1, m2, m3, m4 = st.columns(4)
+            with m1:
+                st.metric(
+                    label="💰 Total Pagu (Tahap Akhir)", 
+                    value=f"Rp {pagu_akhir:,.0f}".replace(",", ".")
+                )
+            with m2:
+                st.metric(
+                    label="🏢 Jumlah SKPD", 
+                    value=f"{jumlah_skpd} OPD"
+                )
+            with m3:
+                st.metric(
+                    label="📋 Sub Kegiatan", 
+                    value=f"{jumlah_sub_keg} Sub Keg"
+                )
+            with m4:
+                delta_warna = "normal" if selisih_total >= 0 else "inverse"
+                st.metric(
+                    label=f"📊 Selisih ({tahap_akhir} - {tahap_awal})", 
+                    value=f"Rp {abs(selisih_total):,.0f}".replace(",", "."),
+                    delta=f"{'+ ' if selisih_total >= 0 else '- '}Rp {abs(selisih_total):,.0f}".replace(",", "."),
+                    delta_color=delta_warna
+                )
+            
+            st.markdown("---")
+            
+            # ---------- GRAFIK: 2 KOLOM ----------
+            col_chart1, col_chart2 = st.columns(2)
+            
+            # GRAFIK 1: Bar Chart Perbandingan Pagu per Tahapan
+            with col_chart1:
+                st.markdown("##### 📊 Perbandingan Total Pagu per Tahapan")
+                
+                data_bar = []
+                for t in list_tahapan:
+                    total = metrik_per_tahapan.get(t, 0)
+                    data_bar.append({"Tahapan": t, "Total Pagu": total})
+                df_bar = pd.DataFrame(data_bar)
+                
+                fig_bar = px.bar(
+                    df_bar, x="Tahapan", y="Total Pagu",
+                    color="Tahapan",
+                    text_auto=True,
+                    color_discrete_sequence=px.colors.qualitative.Set2
+                )
+                fig_bar.update_traces(texttemplate='%{y:,.0f}', textposition='outside', textfont_size=10)
+                fig_bar.update_layout(
+                    showlegend=False, 
+                    yaxis_title="Total Pagu (Rp)",
+                    xaxis_title="",
+                    height=400,
+                    margin=dict(t=20, b=20)
+                )
+                st.plotly_chart(fig_bar, use_container_width=True)
+            
+            # GRAFIK 2: Pie Chart Komposisi Sumber Dana
+            with col_chart2:
+                st.markdown(f"##### 🥧 Komposisi Sumber Dana ({tahap_akhir})")
+                
+                df_sd_dash = df_dash[df_dash['tahapan'] == tahap_akhir].copy()
+                df_sd_dash['nama_sumber_dana'] = df_sd_dash['nama_sumber_dana'].replace("", "TIDAK DIKETAHUI")
+                sd_pie = df_sd_dash.groupby('nama_sumber_dana')['pagu'].sum().reset_index()
+                sd_pie = sd_pie[sd_pie['pagu'] > 0].sort_values('pagu', ascending=False)
+                
+                if not sd_pie.empty:
+                    fig_pie = px.pie(
+                        sd_pie, names="nama_sumber_dana", values="pagu",
+                        color_discrete_sequence=px.colors.qualitative.Pastel,
+                        hole=0.35
+                    )
+                    fig_pie.update_traces(textinfo='percent+label', textposition='outside', textfont_size=10)
+                    fig_pie.update_layout(
+                        showlegend=False,
+                        height=400,
+                        margin=dict(t=20, b=20)
+                    )
+                    st.plotly_chart(fig_pie, use_container_width=True)
+                else:
+                    st.info("Tidak ada data sumber dana untuk ditampilkan.")
+            
+            st.markdown("---")
+            
+            # ---------- GRAFIK 3: Bar Chart Pagu per SKPD ----------
+            st.markdown(f"##### 🏢 Pagu per SKPD ({tahap_akhir})")
+            
+            df_skpd_dash = df_dash[df_dash['tahapan'] == tahap_akhir].groupby(['kode_skpd', 'nama_skpd'])['pagu'].sum().reset_index()
+            df_skpd_dash = df_skpd_dash.sort_values('pagu', ascending=True)
+            
+            if not df_skpd_dash.empty:
+                # Potong nama SKPD agar tidak terlalu panjang di grafik
+                df_skpd_dash['label_skpd'] = df_skpd_dash['nama_skpd'].str[:40]
+                
+                fig_skpd = px.bar(
+                    df_skpd_dash, x="pagu", y="label_skpd",
+                    orientation='h',
+                    text_auto=True,
+                    color_discrete_sequence=["#0083B8"]
+                )
+                fig_skpd.update_traces(texttemplate='%{x:,.0f}', textposition='outside', textfont_size=9)
+                fig_skpd.update_layout(
+                    xaxis_title="Total Pagu (Rp)",
+                    yaxis_title="",
+                    height=max(300, len(df_skpd_dash) * 40),
+                    margin=dict(t=20, b=20, l=10)
+                )
+                st.plotly_chart(fig_skpd, use_container_width=True)
+            
+            st.markdown("---")
+            
+            # ---------- TABEL: TOP 10 SELISIH TERBESAR ----------
+            st.markdown(f"##### 🔝 Top 10 Sub Kegiatan — Selisih Terbesar ({tahap_akhir} vs {tahap_awal})")
+            
+            df_selisih = df_dash.groupby(['kode_sub_kegiatan', 'nama_sub_kegiatan', 'nama_skpd', 'tahapan'])['pagu'].sum().reset_index()
+            pivot_selisih = df_selisih.pivot_table(
+                index=['kode_sub_kegiatan', 'nama_sub_kegiatan', 'nama_skpd'], 
+                columns='tahapan', values='pagu', aggfunc='sum', fill_value=0
+            ).reset_index()
+            
+            for t in [tahap_awal, tahap_akhir]:
+                if t not in pivot_selisih.columns:
+                    pivot_selisih[t] = 0
+            
+            pivot_selisih['Selisih'] = pivot_selisih[tahap_akhir] - pivot_selisih[tahap_awal]
+            pivot_selisih['Abs_Selisih'] = pivot_selisih['Selisih'].abs()
+            
+            top10 = pivot_selisih.nlargest(10, 'Abs_Selisih')[
+                ['kode_sub_kegiatan', 'nama_sub_kegiatan', 'nama_skpd', tahap_awal, tahap_akhir, 'Selisih']
+            ].reset_index(drop=True)
+            
+            top10.columns = ['Kode Sub', 'Uraian Sub Kegiatan', 'SKPD', f'Pagu {tahap_awal}', f'Pagu {tahap_akhir}', 'Selisih']
+            
+            if not top10.empty:
+                kolom_angka_top = [f'Pagu {tahap_awal}', f'Pagu {tahap_akhir}', 'Selisih']
+                st.dataframe(
+                    top10,
+                    use_container_width=True,
+                    column_config={
+                        f'Pagu {tahap_awal}': st.column_config.NumberColumn(format="Rp %.0f"),
+                        f'Pagu {tahap_akhir}': st.column_config.NumberColumn(format="Rp %.0f"),
+                        "Selisih": st.column_config.NumberColumn(format="Rp %.0f"),
+                    }
+                )
+            else:
+                st.info("Tidak cukup data untuk menampilkan tabel selisih.")
+
+        # -------------------------------------------------------------------
         # TAB 1: REKAP HIERARKI TAHAPAN (MENGGUNAKAN FUNGSI REUSABLE)
         # -------------------------------------------------------------------
         with tab1:
@@ -1194,4 +1363,5 @@ elif menu_pilihan == "Rekap SIPD":
                                 
                         except Exception as e:
                             st.error(f"❌ Terjadi kesalahan saat memproses data: {e}")
+
 
