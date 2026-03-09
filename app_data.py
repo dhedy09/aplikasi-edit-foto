@@ -53,32 +53,15 @@ with st.sidebar:
     st.markdown("<h2 style='text-align: center;'>📊 Mamayo Data</h2>", unsafe_allow_html=True)
     st.markdown("---")
     
-    # --- MENU 1: ALAT UMUM ---
-    menu_umum = option_menu(
+    menu_pilihan = option_menu(
         menu_title=None,
-        options=["Alat Excel"],
-        icons=["wrench-adjustable"], 
-        key="menu_umum",
+        options=["Alat Excel", "Import SIPD", "Rekap SIPD"],
+        icons=["wrench-adjustable", "cloud-arrow-up-fill", "bar-chart-steps"], 
+        default_index=0,
+        key="menu_utama",
         styles={
             "container": {"padding": "0!important", "background-color": "transparent"},
             "icon": {"color": "#ffc107", "font-size": "18px"}, 
-            "nav-link": {"font-size": "15px", "text-align": "left", "margin":"5px", "--hover-color": "#262730"},
-            "nav-link-selected": {"background-color": "#0083B8", "color": "white"},
-        }
-    )
-
-    st.markdown("<div style='margin: 10px 0px; border-bottom: 2px solid #555;'></div>", unsafe_allow_html=True)
-    st.caption("📂 DATABASE SIPD")
-
-    # --- MENU 2: KHUSUS SIPD ---
-    menu_sipd = option_menu(
-        menu_title=None,
-        options=["Import SIPD", "Rekap SIPD"],
-        icons=["cloud-arrow-up-fill", "bar-chart-steps"], 
-        key="menu_sipd",
-        styles={
-            "container": {"padding": "0!important", "background-color": "transparent"},
-            "icon": {"color": "#00d4ff", "font-size": "18px"}, 
             "nav-link": {"font-size": "15px", "text-align": "left", "margin":"5px", "--hover-color": "#262730"},
             "nav-link-selected": {"background-color": "#0083B8", "color": "white"},
         }
@@ -95,7 +78,7 @@ with st.sidebar:
 # -------------------------------------------------------------------------
 # --- MODUL 1: ALAT EXCEL ---
 # -------------------------------------------------------------------------
-if menu_umum == "Alat Excel":
+if menu_pilihan == "Alat Excel":
     st.title("🛠️ Alat Excel")
     st.write("Gunakan alat ini untuk merapikan data Dapodik/SIPD dalam satu kali jalan.")
     
@@ -160,7 +143,7 @@ if menu_umum == "Alat Excel":
 # -------------------------------------------------------------------------
 # --- MODUL 2: IMPORT SIPD KE DATABASE ---
 # -------------------------------------------------------------------------
-elif menu_sipd == "Import SIPD":
+elif menu_pilihan == "Import SIPD":
     st.title("📥 Import Data SIPD")
     st.write("Data Excel tarikan SIPD akan otomatis diformat dan disimpan ke server Supabase Anda secara permanen.")
     
@@ -227,7 +210,7 @@ elif menu_sipd == "Import SIPD":
 # -------------------------------------------------------------------------
 # --- MODUL 3: REKAP SIPD (VERSI FINAL - MERGER DPA & REALISASI) ---
 # -------------------------------------------------------------------------
-elif menu_sipd == "Rekap SIPD":
+elif menu_pilihan == "Rekap SIPD":
     st.title("📊 Rekapitulasi SIPD")
     st.write("Analisis perbandingan postur anggaran antar tahapan & Integrasi DPA.")
     
@@ -777,9 +760,6 @@ elif menu_sipd == "Rekap SIPD":
                             type="primary",
                             key="dl_t4"
                         )
-
-
-
 
 
 
