@@ -142,6 +142,10 @@ if menu_pilihan == "Alat Excel":
                     except Exception as e:
                         st.error(f"❌ Terjadi kesalahan: {e}")
 
+elif menu_pilihan == "─── DATABASE SIPD ───":
+    # Tampilkan pesan jika garis pembatasnya tidak sengaja diklik
+    st.info("👆 Kategori SIPD. Silakan klik menu **Import SIPD** atau **Rekap SIPD** di sidebar kiri.")
+
 # -------------------------------------------------------------------------
 # --- MODUL 2: IMPORT SIPD KE DATABASE ---
 # -------------------------------------------------------------------------
@@ -762,6 +766,7 @@ elif menu_pilihan == "Rekap SIPD":
                             type="primary",
                             key="dl_t4"
                         )
+
 
 
 
