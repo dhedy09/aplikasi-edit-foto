@@ -1394,6 +1394,9 @@ elif menu_pilihan == "Rekap SIPD":
                     if t not in pivot_rek.columns:
                         pivot_rek[t] = 0
                 pivot_rek['Selisih'] = pivot_rek[tahap_akhir] - pivot_rek[tahap_awal]
+                # Urutkan kolom tahapan sesuai filter
+                urutan_kolom = [tahap_awal, tahap_akhir]
+                pivot_rek = pivot_rek[['Major Rek', 'nama_rekening'] + urutan_kolom + ['Selisih']]
                 # Tambah baris total
                 total_row = pd.DataFrame([{
                     'Major Rek': 'TOTAL',
@@ -1423,5 +1426,6 @@ elif menu_pilihan == "Rekap SIPD":
                     file_name=f"Rekap_Kode_Rekening_{tahun_pilihan}_{tahap_akhir}.xlsx",
                     mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
                 )
+
 
 
