@@ -188,6 +188,8 @@ elif menu_pilihan == "Import SIPD":
                         
                         # 4. Masukkan Nama Tahapan dari inputan ke dalam dataframe
                         df['tahapan'] = tahapan_input
+
+                        df = df.where(pd.notna(df), None)
                         
                         # 5. Insert Batch ke Supabase
                         data_insert = df.to_dict(orient='records')
@@ -843,6 +845,7 @@ elif menu_pilihan == "Rekap SIPD":
                             type="primary",
                             key="dl_t4"
                         )
+
 
 
 
