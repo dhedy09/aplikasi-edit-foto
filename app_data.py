@@ -208,7 +208,7 @@ elif menu_pilihan == "Import SIPD":
         st.warning("⚠️ Silakan isi kotak **Nama Tahapan** terlebih dahulu untuk memunculkan tombol upload.")
 
 # -------------------------------------------------------------------------
-# --- MODUL 3: REKAP SIPD (VERSI FINAL - PENYERAGAMAN NOMENKLATUR OPD) ---
+# --- MODUL 3: REKAP SIPD (VERSI FINAL - MERGER MULTI SKPD & DPA) ---
 # -------------------------------------------------------------------------
 elif menu_pilihan == "Rekap SIPD":
     st.title("📊 Rekapitulasi SIPD")
@@ -263,7 +263,7 @@ elif menu_pilihan == "Rekap SIPD":
         st.markdown("### ⚙️ Pengaturan Filter & Parameter")
 
         # ==========================================
-        # 2. SISTEM FILTER GLOBAL
+        # 2. SISTEM FILTER GLOBAL (MULTI SELECT)
         # ==========================================
         list_tahun = sorted([t for t in df['tahun'].unique() if t != ""], reverse=True)
         col_thn, col_skpd = st.columns(2)
@@ -273,16 +273,20 @@ elif menu_pilihan == "Rekap SIPD":
 
         list_skpd = sorted([s for s in df_tahun['nama_skpd'].unique() if s != ""])
         list_skpd.insert(0, "SEMUA SKPD")
+        
         with col_skpd:
-            skpd_pilihan = st.selectbox("🏢 Pilih SKPD:", list_skpd)
+            # UBAHAN 1: Menjadi multiselect agar bisa memilih SKPD Lama & Baru
+            skpd_pilihan = st.multiselect("🏢 Pilih SKPD (Bisa pilih >1 untuk dimerger):", list_skpd, default=["SEMUA SKPD"])
 
-        if skpd_pilihan != "SEMUA SKPD":
-            df_proses = df_tahun[df_tahun['nama_skpd'] == skpd_pilihan].copy()
-        else:
+        if "SEMUA SKPD" in skpd_pilihan:
             df_proses = df_tahun.copy()
+            nama_file_export = "SEMUA_SKPD"
+        else:
+            df_proses = df_tahun[df_tahun['nama_skpd'].isin(skpd_pilihan)].copy()
+            nama_file_export = "MERGER_" + "_".join([s.replace(" ", "")[:10] for s in skpd_pilihan])
 
         if df_proses.empty:
-            st.warning(f"⚠️ Tidak ada data untuk {skpd_pilihan} di tahun {tahun_pilihan}.")
+            st.warning(f"⚠️ Tidak ada data untuk pilihan SKPD tersebut di tahun {tahun_pilihan}.")
             st.stop()
 
         tahapan_tersedia = [t for t in df_proses['tahapan'].unique() if t != ""]
@@ -303,20 +307,28 @@ elif menu_pilihan == "Rekap SIPD":
             tahap_akhir = st.selectbox("📈 Tahapan Akhir (Dikurangi):", list_tahapan, index=len(list_tahapan)-1)
 
         # ==========================================
-        # 2.5 PENYERAGAMAN NOMENKLATUR (FITUR BARU)
+        # 2.5 JANGKAR MERGER KODE & NOMENKLATUR
         # ==========================================
-        # Jika kode sama tapi nama berubah (misal nama SKPD ganti), kita paksa 
-        # nama di tahapan awal untuk mengikuti nama di tahapan akhir agar sejajar.
-        df_akhir_nama = df_proses[df_proses['tahapan'] == tahap_akhir]
+        # Kita ambil hierarki dari Tahapan Akhir sebagai 'Kiblat' / Patokan
+        df_akhir = df_proses[df_proses['tahapan'] == tahap_akhir]
         
-        if not df_akhir_nama.empty:
-            # Buat kamus (dictionary) dari kode ke nama terbaru
-            dict_skpd = df_akhir_nama.drop_duplicates('kode_skpd').set_index('kode_skpd')['nama_skpd'].to_dict()
-            dict_sub = df_akhir_nama.drop_duplicates('kode_sub_kegiatan').set_index('kode_sub_kegiatan')['nama_sub_kegiatan'].to_dict()
+        if not df_akhir.empty:
+            # Daftar kolom yang akan diseragamkan mengikuti Tahap Akhir
+            kolom_hierarki = [
+                'kode_skpd', 'nama_skpd', 
+                'kode_urusan', 'nama_urusan', 
+                'kode_program', 'nama_program', 
+                'kode_kegiatan', 'nama_kegiatan', 
+                'nama_sub_kegiatan'
+            ]
             
-            # Terapkan kamus ke seluruh data (timpa nama lama dengan nama baru jika kodenya sama)
-            df_proses['nama_skpd'] = df_proses['kode_skpd'].map(dict_skpd).fillna(df_proses['nama_skpd'])
-            df_proses['nama_sub_kegiatan'] = df_proses['kode_sub_kegiatan'].map(dict_sub).fillna(df_proses['nama_sub_kegiatan'])
+            # Buat referensi unik berdasarkan kode_sub_kegiatan
+            df_ref = df_akhir[['kode_sub_kegiatan'] + kolom_hierarki].drop_duplicates('kode_sub_kegiatan').set_index('kode_sub_kegiatan')
+            
+            # Terapkan (Timpa) data lama dengan data referensi (jika kode sub kegiatannya cocok)
+            for col in kolom_hierarki:
+                dict_map = df_ref[col].to_dict()
+                df_proses[col] = df_proses['kode_sub_kegiatan'].map(dict_map).fillna(df_proses[col])
 
         # ==========================================
         # 3. PEMBUATAN TAB MENU
@@ -409,8 +421,7 @@ elif menu_pilihan == "Rekap SIPD":
                         df_tampil.style.apply(warna_baris_excel, axis=1).format(format_dict).to_excel(writer, index=False, sheet_name=f'Hierarki')
                     output_excel.seek(0)
                     
-                    nama_file = "SEMUA_SKPD" if skpd_pilihan == "SEMUA SKPD" else skpd_pilihan.replace(" ", "_").replace("/", "_")
-                    st.download_button("📥 Download Excel (Hierarki)", output_excel, f"Hierarki_{nama_file}_{tahun_pilihan}.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", key="dl_t1")
+                    st.download_button("📥 Download Excel (Hierarki)", output_excel, f"Hierarki_{nama_file_export}_{tahun_pilihan}.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", key="dl_t1")
 
         # -------------------------------------------------------------------
         # TAB 2: REKAP SUMBER DANA + TOTAL KESELURUHAN
@@ -450,8 +461,7 @@ elif menu_pilihan == "Rekap SIPD":
                         df_hasil_sd.style.apply(highlight_total_excel, axis=1).format(format_dict_sd).to_excel(writer, index=False, sheet_name=f'SumberDana')
                     output_excel_sd.seek(0)
                     
-                    nama_file_sd = "SEMUA_SKPD" if skpd_pilihan == "SEMUA SKPD" else skpd_pilihan.replace(" ", "_").replace("/", "_")
-                    st.download_button("📥 Download Excel (Sumber Dana)", output_excel_sd, f"SumberDana_{nama_file_sd}_{tahun_pilihan}.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", key="dl_t2")
+                    st.download_button("📥 Download Excel (Sumber Dana)", output_excel_sd, f"SumberDana_{nama_file_export}_{tahun_pilihan}.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", key="dl_t2")
 
         # -------------------------------------------------------------------
         # TAB 3: INTEGRASI LINK DPA
@@ -583,11 +593,10 @@ elif menu_pilihan == "Rekap SIPD":
                                 df_excel_dpa.drop(columns=['Level']).style.apply(warna_baris_dpa, axis=1).to_excel(writer, index=False, sheet_name=f'Integrasi_DPA')
                             output_dpa.seek(0)
                             
-                            nama_file_dpa = "SEMUA_SKPD" if skpd_pilihan == "SEMUA SKPD" else skpd_pilihan.replace(" ", "_").replace("/", "_")
                             st.download_button(
                                 label="📥 Download Excel (Link DPA Tertanam)", 
                                 data=output_dpa, 
-                                file_name=f"Integrasi_DPA_{nama_file_dpa}_{tahun_pilihan}.xlsx", 
+                                file_name=f"Integrasi_DPA_{nama_file_export}_{tahun_pilihan}.xlsx", 
                                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", 
                                 type="primary",
                                 key="dl_t3"
