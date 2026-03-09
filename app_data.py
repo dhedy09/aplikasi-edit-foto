@@ -31,7 +31,6 @@ except Exception as e:
 @st.cache_data(ttl=1000)
 def load_mapping_sotk(tahun):
     res = supabase.table("mapping_sotk").select("kode_lama", "kode_baru").eq("tahun", tahun).execute()
-    # st.write("DEBUG mapping_sotk loader:", tahun, res.data)
     mapping = {row['kode_lama']: row['kode_baru'] for row in res.data}
     return mapping
 
@@ -539,7 +538,6 @@ elif menu_pilihan == "Rekap SIPD":
 
         if 'mapping_sotk' not in st.session_state or st.session_state.mapping_sotk == {}:
             st.session_state.mapping_sotk = load_mapping_sotk(tahun_pilihan)
-            # st.write("DEBUG mapping_sotk session:", st.session_state.mapping_sotk)
 
         list_skpd = sorted([s for s in df_tahun['nama_skpd'].unique() if s != ""])
         list_skpd.insert(0, "SEMUA SKPD")
@@ -580,16 +578,8 @@ elif menu_pilihan == "Rekap SIPD":
         # ==========================================
         
         # Inisialisasi session state untuk mapping
-        # ---- Notifikasi SUKSES Mapping ----
-        if st.session_state.get("mapping_alert") == "sukses":
-            st.success("✅ Mapping SOTK sudah disimpan ke database!")
-            st.session_state["mapping_alert"] = None
-        if st.session_state.get("mapping_alert") == "hapus":
-            st.success("✅ Mapping berhasil dihapus!")
-            st.session_state["mapping_alert"] = None
-        if st.session_state.get("mapping_alert") == "hapus_semua":
-            st.success("✅ Semua mapping berhasil dihapus!")
-            st.session_state["mapping_alert"] = None
+        if 'mapping_sotk' not in st.session_state:
+            st.session_state.mapping_sotk = {}  # {kode_lama: kode_baru}
         
         with st.expander("🔄 Mapping Perubahan SOTK / Perubahan Nama OPD (Opsional)", expanded=False):
             st.caption("Tambahkan mapping agar data OPD lama tergabung dengan OPD baru (mapping SOTK akan disimpan ke database).")
@@ -615,11 +605,10 @@ elif menu_pilihan == "Rekap SIPD":
                             "tahun": tahun_pilihan,
                             "username": st.session_state.get('username', '')
                         }]).execute()
-                        st.session_state["mapping_alert"] = "sukses"
+                        st.success("✅ Mapping SOTK sudah disimpan ke database!")
                         st.session_state.mapping_sotk = load_mapping_sotk(tahun_pilihan)
                         st.rerun()
-        
-            # -- Tampilkan mapping aktif
+            # Tampilkan mapping aktif
             if st.session_state.mapping_sotk:
                 st.markdown("##### 📋 Mapping SOTK Aktif (Database):")
                 for idx, (k_lama, k_baru) in enumerate(st.session_state.mapping_sotk.items()):
@@ -629,15 +618,10 @@ elif menu_pilihan == "Rekap SIPD":
                     with col_hapus:
                         if st.button("🗑️ Hapus", key=f"hapus_sotk_{k_lama}_{k_baru}_{idx}"):
                             supabase.table("mapping_sotk").delete().eq("kode_lama", k_lama).eq("tahun", tahun_pilihan).execute()
-                            load_mapping_sotk.clear()
-                            st.session_state["mapping_alert"] = "hapus"
                             st.session_state.mapping_sotk = load_mapping_sotk(tahun_pilihan)
                             st.rerun()
-                # Tombol hapus semua mapping - di luar loop!
                 if st.button("🧹 Hapus Semua Mapping", key="hapus_semua_sotk_db"):
                     supabase.table("mapping_sotk").delete().eq("tahun", tahun_pilihan).execute()
-                    load_mapping_sotk.clear()
-                    st.session_state["mapping_alert"] = "hapus_semua"
                     st.session_state.mapping_sotk = {}
                     st.rerun()
             else:
@@ -1174,7 +1158,7 @@ elif menu_pilihan == "Rekap SIPD":
                     df_eval = df_proses[df_proses['tahapan'] == tahap_akhir].copy()
                     
                     if df_eval.empty:
-                        st.error(f"⚠�� Tidak ada data anggaran untuk tahapan {tahap_akhir}.")
+                        st.error(f"⚠   Tidak ada data anggaran untuk tahapan {tahap_akhir}.")
                     else:
                         df_base = df_eval.groupby(['kode_sub_kegiatan', 'nama_sub_kegiatan'])['pagu'].sum().reset_index()
                         df_base.rename(columns={'kode_sub_kegiatan': 'Kode Sub', 'nama_sub_kegiatan': 'Uraian Sub Kegiatan', 'pagu': 'Pagu Anggaran'}, inplace=True)
@@ -1525,16 +1509,3 @@ elif menu_pilihan == "Rekap SIPD":
                 file_name=f"Rekap_Jenis_Belanja_{tahun_pilihan}.xlsx",
                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
             )
-
-
-
-
-
-
-
-
-
-
-
-
-
