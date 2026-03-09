@@ -622,10 +622,13 @@ elif menu_pilihan == "Rekap SIPD":
                         if st.button("🗑️ Hapus", key=f"hapus_sotk_{k_lama}_{k_baru}_{idx}"):
                             supabase.table("mapping_sotk").delete().eq("kode_lama", k_lama).eq("tahun", tahun_pilihan).execute()
                             st.session_state.mapping_sotk = load_mapping_sotk(tahun_pilihan)
+                            st.success("✅ Mapping berhasil dihapus!")
                             st.rerun()
+                # Tombol hapus semua mapping - DI LUAR LOOP
                 if st.button("🧹 Hapus Semua Mapping", key="hapus_semua_sotk_db"):
                     supabase.table("mapping_sotk").delete().eq("tahun", tahun_pilihan).execute()
                     st.session_state.mapping_sotk = {}
+                    st.success("✅ Semua mapping berhasil dihapus!")
                     st.rerun()
             else:
                 st.info("Belum ada mapping. Sistem akan berfungsi seperti biasa.")
@@ -1512,6 +1515,7 @@ elif menu_pilihan == "Rekap SIPD":
                 file_name=f"Rekap_Jenis_Belanja_{tahun_pilihan}.xlsx",
                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
             )
+
 
 
 
