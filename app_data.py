@@ -24,14 +24,15 @@ try:
     url: str = st.secrets["SUPABASE_URL"]
     key: str = st.secrets["SUPABASE_KEY"]
     supabase: Client = create_client(url, key)
-    @st.cache_data(ttl=1000)
+except Exception as e:
+    st.error("⚠️ Gagal terhubung ke Database. Pastikan SUPABASE_URL dan SUPABASE_KEY sudah ada di Streamlit Secrets!")
+    st.stop()
+
+@st.cache_data(ttl=1000)
 def load_mapping_sotk(tahun):
     res = supabase.table("mapping_sotk").select("kode_lama", "kode_baru").eq("tahun", tahun).execute()
     mapping = {row['kode_lama']: row['kode_baru'] for row in res.data}
     return mapping
-except Exception as e:
-    st.error("⚠️ Gagal terhubung ke Database. Pastikan SUPABASE_URL dan SUPABASE_KEY sudah ada di Streamlit Secrets!")
-    st.stop()
 
 # ==========================================
 # 3. SISTEM LOGIN
@@ -1508,6 +1509,7 @@ elif menu_pilihan == "Rekap SIPD":
                 file_name=f"Rekap_Jenis_Belanja_{tahun_pilihan}.xlsx",
                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
             )
+
 
 
 
