@@ -31,6 +31,7 @@ except Exception as e:
 @st.cache_data(ttl=1000)
 def load_mapping_sotk(tahun):
     res = supabase.table("mapping_sotk").select("kode_lama", "kode_baru").eq("tahun", tahun).execute()
+    st.write("DEBUG mapping_sotk loader:", tahun, res.data)
     mapping = {row['kode_lama']: row['kode_baru'] for row in res.data}
     return mapping
 
@@ -538,6 +539,7 @@ elif menu_pilihan == "Rekap SIPD":
 
         if 'mapping_sotk' not in st.session_state or st.session_state.mapping_sotk == {}:
             st.session_state.mapping_sotk = load_mapping_sotk(tahun_pilihan)
+            st.write("DEBUG mapping_sotk session:", st.session_state.mapping_sotk)
 
         list_skpd = sorted([s for s in df_tahun['nama_skpd'].unique() if s != ""])
         list_skpd.insert(0, "SEMUA SKPD")
@@ -609,6 +611,7 @@ elif menu_pilihan == "Rekap SIPD":
                         st.session_state.mapping_sotk = load_mapping_sotk(tahun_pilihan)
                         st.rerun()
             # Tampilkan mapping aktif
+            st.write("DEBUG mapping_sotk session in expander:", st.session_state.mapping_sotk)
             if st.session_state.mapping_sotk:
                 st.markdown("##### 📋 Mapping SOTK Aktif (Database):")
                 for idx, (k_lama, k_baru) in enumerate(st.session_state.mapping_sotk.items()):
@@ -1509,6 +1512,7 @@ elif menu_pilihan == "Rekap SIPD":
                 file_name=f"Rekap_Jenis_Belanja_{tahun_pilihan}.xlsx",
                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
             )
+
 
 
 
