@@ -67,7 +67,6 @@ with st.sidebar:
         }
     )
 
-    # PEMBATAS ASLI
     st.markdown("<div style='margin: 10px 0px; border-bottom: 2px solid #555;'></div>", unsafe_allow_html=True)
     st.caption("📂 DATABASE SIPD")
 
@@ -161,7 +160,7 @@ if menu_pilihan == "Alat Excel":
 # -------------------------------------------------------------------------
 # --- MODUL 2: IMPORT SIPD KE DATABASE ---
 # -------------------------------------------------------------------------
-elif menu_pilihan == "Import SIPD":
+elif menu_sipd == "Import SIPD":
     st.title("📥 Import Data SIPD")
     st.write("Data Excel tarikan SIPD akan otomatis diformat dan disimpan ke server Supabase Anda secara permanen.")
     
@@ -228,7 +227,7 @@ elif menu_pilihan == "Import SIPD":
 # -------------------------------------------------------------------------
 # --- MODUL 3: REKAP SIPD (VERSI FINAL - MERGER DPA & REALISASI) ---
 # -------------------------------------------------------------------------
-elif menu_pilihan == "Rekap SIPD":
+elif menu_sipd == "Rekap SIPD":
     st.title("📊 Rekapitulasi SIPD")
     st.write("Analisis perbandingan postur anggaran antar tahapan & Integrasi DPA.")
     
@@ -778,6 +777,7 @@ elif menu_pilihan == "Rekap SIPD":
                             type="primary",
                             key="dl_t4"
                         )
+
 
 
 
