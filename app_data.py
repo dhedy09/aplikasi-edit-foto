@@ -580,8 +580,16 @@ elif menu_pilihan == "Rekap SIPD":
         # ==========================================
         
         # Inisialisasi session state untuk mapping
-        if 'mapping_sotk' not in st.session_state:
-            st.session_state.mapping_sotk = {}  # {kode_lama: kode_baru}
+        # ---- Notifikasi SUKSES Mapping ----
+        if st.session_state.get("mapping_alert") == "sukses":
+            st.success("✅ Mapping SOTK sudah disimpan ke database!")
+            st.session_state["mapping_alert"] = None
+        if st.session_state.get("mapping_alert") == "hapus":
+            st.success("✅ Mapping berhasil dihapus!")
+            st.session_state["mapping_alert"] = None
+        if st.session_state.get("mapping_alert") == "hapus_semua":
+            st.success("✅ Semua mapping berhasil dihapus!")
+            st.session_state["mapping_alert"] = None
         
         with st.expander("🔄 Mapping Perubahan SOTK / Perubahan Nama OPD (Opsional)", expanded=False):
             st.caption("Tambahkan mapping agar data OPD lama tergabung dengan OPD baru (mapping SOTK akan disimpan ke database).")
@@ -607,28 +615,28 @@ elif menu_pilihan == "Rekap SIPD":
                             "tahun": tahun_pilihan,
                             "username": st.session_state.get('username', '')
                         }]).execute()
-                        st.success("✅ Mapping SOTK sudah disimpan ke database!")
+                        st.session_state["mapping_alert"] = "sukses"
                         st.session_state.mapping_sotk = load_mapping_sotk(tahun_pilihan)
                         st.rerun()
-            # Tampilkan mapping aktif
-            # st.write("DEBUG mapping_sotk session in expander:", st.session_state.mapping_sotk)
+        
+            # -- Tampilkan mapping aktif
             if st.session_state.mapping_sotk:
                 st.markdown("##### 📋 Mapping SOTK Aktif (Database):")
                 for idx, (k_lama, k_baru) in enumerate(st.session_state.mapping_sotk.items()):
                     col_info, col_hapus = st.columns([8, 2])
                     with col_info:
-                        st.markdown(f"🔸 `{k_lama}` → `{k_baru}`")
+                        st.markdown(f"��� `{k_lama}` → `{k_baru}`")
                     with col_hapus:
                         if st.button("🗑️ Hapus", key=f"hapus_sotk_{k_lama}_{k_baru}_{idx}"):
                             supabase.table("mapping_sotk").delete().eq("kode_lama", k_lama).eq("tahun", tahun_pilihan).execute()
+                            st.session_state["mapping_alert"] = "hapus"
                             st.session_state.mapping_sotk = load_mapping_sotk(tahun_pilihan)
-                            st.success("✅ Mapping berhasil dihapus!")
                             st.rerun()
-                # Tombol hapus semua mapping - DI LUAR LOOP
+                # Tombol hapus semua mapping - di luar loop!
                 if st.button("🧹 Hapus Semua Mapping", key="hapus_semua_sotk_db"):
                     supabase.table("mapping_sotk").delete().eq("tahun", tahun_pilihan).execute()
+                    st.session_state["mapping_alert"] = "hapus_semua"
                     st.session_state.mapping_sotk = {}
-                    st.success("✅ Semua mapping berhasil dihapus!")
                     st.rerun()
             else:
                 st.info("Belum ada mapping. Sistem akan berfungsi seperti biasa.")
@@ -1515,6 +1523,7 @@ elif menu_pilihan == "Rekap SIPD":
                 file_name=f"Rekap_Jenis_Belanja_{tahun_pilihan}.xlsx",
                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
             )
+
 
 
 
