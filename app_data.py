@@ -949,81 +949,162 @@ elif menu_pilihan == "Rekap SIPD":
 
 
         # -------------------------------------------------------------------
-        # TAB 5: REKAPITULASI PER BIDANG URUSAN (AUTO SUMIFS)
+        # TAB 5: REKAPITULASI PER BIDANG (HYBRID - LOKAL & GOOGLE SHEET)
         # -------------------------------------------------------------------
         with tab5:
-            st.info(f"💡 Menampilkan total pagu per Bidang Urusan: **{tahap_awal}** vs **{tahap_akhir}**")
+            st.info(f"💡 Menampilkan total pagu per Bidang Internal (berdasarkan file pemetaan): **{tahap_awal}** vs **{tahap_akhir}**")
             
-            # Perhatikan key="btn_tab5" agar tidak bentrok dengan tombol di tab lain
-            if st.button("📊 PROSES REKAP BIDANG", type="primary", use_container_width=True, key="btn_tab5"):
-                with st.spinner("Menghitung total anggaran per bidang..."):
-                    
-                    try:
-                        # 1. Filter data hanya untuk tahap awal dan tahap akhir
-                        df_bidang = df_proses[df_proses['tahapan'].isin([tahap_awal, tahap_akhir])].copy()
+            # Pilihan Mode Input persis seperti di Tab 3
+            sumber_data_bidang = st.radio("Pilih Mode Input File Pemetaan Bidang:", ["📂 Upload File Lokal (Excel/CSV)", "🌐 Link Google Sheet (Otomatis Baca Sheet)"], horizontal=True, key="radio_bidang_t5")
+            
+            file_mapping_bidang = None
+            link_bidang_input = ""
+            df_map_gsheet = pd.DataFrame()
+            
+            if sumber_data_bidang == "📂 Upload File Lokal (Excel/CSV)":
+                file_mapping_bidang = st.file_uploader("📂 Upload File Excel Pemetaan Bidang (Pastikan ada kolom 'kode sub' dan 'bidang')", type=["xlsx", "xls", "csv"], key="up_bidang_t5")
+            else:
+                link_bidang_input = st.text_input("🔗 Paste Link Google Sheet Pemetaan Bidang:", placeholder="https://docs.google.com/spreadsheets/d/...", key="link_bidang_t5")
+                st.caption("Gunakan link Share biasa. Pastikan akses diatur ke: *Anyone with the link*")
+                
+                # --- LOGIKA AJAIB PENDETEKSI SHEET (Sama dengan Tab 3) ---
+                if link_bidang_input:
+                    match = re.search(r'/d/([a-zA-Z0-9-_]+)', link_bidang_input)
+                    if match:
+                        doc_id = match.group(1)
+                        url_xlsx = f"https://docs.google.com/spreadsheets/d/{doc_id}/export?format=xlsx"
                         
-                        # 2. GROUP BY (Ini adalah versi Python dari SUMIFS / Pivot Table)
-                        # Kita kelompokkan berdasarkan Kode dan Nama Bidang Urusan
-                        rekap_bidang = df_bidang.groupby(['kode_bidang_urusan', 'nama_bidang_urusan', 'tahapan'])['pagu'].sum().reset_index()
-                        
-                        # 3. PIVOT (Jadikan tahapan sebagai kolom menyamping)
-                        pivot_bidang = rekap_bidang.pivot_table(
-                            index=['kode_bidang_urusan', 'nama_bidang_urusan'], 
-                            columns='tahapan', 
-                            values='pagu', 
-                            aggfunc='sum', 
-                            fill_value=0
-                        ).reset_index()
-                        
-                        # Pastikan kolom tahap_awal dan tahap_akhir ada (meski nilainya 0)
-                        for t in [tahap_awal, tahap_akhir]:
-                            if t not in pivot_bidang.columns:
-                                pivot_bidang[t] = 0
+                        try:
+                            @st.cache_data(show_spinner=False, ttl=600)
+                            def tarik_excel_bidang(url):
+                                resp = requests.get(url)
+                                resp.raise_for_status()
+                                return resp.content
+                            
+                            with st.spinner("🔍 Sedang membongkar Google Sheet untuk mencari daftar Sheet..."):
+                                excel_bytes = tarik_excel_bidang(url_xlsx)
+                                xls = pd.ExcelFile(io.BytesIO(excel_bytes))
+                                daftar_sheet = xls.sheet_names
                                 
-                        # 4. Hitung Selisih
-                        pivot_bidang['Selisih'] = pivot_bidang[tahap_akhir] - pivot_bidang[tahap_awal]
-                        
-                        # Urutkan berdasarkan kode bidang
-                        pivot_bidang = pivot_bidang.sort_values('kode_bidang_urusan').reset_index(drop=True)
-                        
-                        # Ganti nama kolom biar lebih rapi di layar
-                        pivot_bidang.rename(columns={
-                            'kode_bidang_urusan': 'Kode Bidang',
-                            'nama_bidang_urusan': 'Nama Bidang Urusan',
-                            tahap_awal: f'Pagu {tahap_awal}',
-                            tahap_akhir: f'Pagu {tahap_akhir}'
-                        }, inplace=True)
-                        
-                        # 5. Tampilkan ke Layar
-                        st.success("✅ Rekapitulasi Per Bidang Selesai!")
-                        st.dataframe(
-                            pivot_bidang, 
-                            use_container_width=True,
-                            column_config={
-                                f'Pagu {tahap_awal}': st.column_config.NumberColumn(format="Rp %.0f"),
-                                f'Pagu {tahap_akhir}': st.column_config.NumberColumn(format="Rp %.0f"),
-                                "Selisih": st.column_config.NumberColumn(format="Rp %.0f")
-                            }
-                        )
-                        
-                        # 6. Tombol Download Excel
-                        import io
-                        output_bidang = io.BytesIO()
-                        with pd.ExcelWriter(output_bidang, engine='openpyxl') as writer:
-                            pivot_bidang.to_excel(writer, index=False, sheet_name='Rekap_Bidang')
-                        output_bidang.seek(0)
-                        
-                        st.download_button(
-                            label="📥 Download Excel (Rekap Bidang)", 
-                            data=output_bidang, 
-                            file_name=f"Rekap_Bidang_{nama_file_export}_{tahun_pilihan}.xlsx", 
-                            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", 
-                            type="primary",
-                            key="dl_tab5" # Pastikan key download juga unik
-                        )
-                        
-                    except Exception as e:
-                        st.error(f"❌ Terjadi kesalahan saat menghitung rekap bidang: {e}")
+                            if daftar_sheet:
+                                sheet_pilihan = st.selectbox("📑 Pilih Tab (Sheet) yang berisi data Bidang:", daftar_sheet, key="sheet_bidang_t5")
+                                if sheet_pilihan:
+                                    df_map_gsheet = pd.read_excel(xls, sheet_name=sheet_pilihan)
+                            else:
+                                st.error("❌ Tidak ada sheet yang ditemukan di dalam file tersebut.")
+                        except Exception as e:
+                            st.error(f"❌ Gagal membaca Google Sheet. Pastikan link tidak dikunci. Error: {e}")
+                    else:
+                        st.warning("⚠️ Link tidak valid. Coba paste ulang link Google Sheet yang benar.")
+
+            # --- TOMBOL EKSEKUSI ---
+            if st.button("📊 PROSES REKAP BIDANG", type="primary", use_container_width=True, key="btn_tab5"):
+                
+                # Validasi Kosong
+                if sumber_data_bidang == "📂 Upload File Lokal (Excel/CSV)" and file_mapping_bidang is None:
+                    st.error("⚠️ Mohon upload file Excel/CSV terlebih dahulu!")
+                elif sumber_data_bidang == "🌐 Link Google Sheet (Otomatis Baca Sheet)" and link_bidang_input == "":
+                    st.error("⚠️ Mohon paste Link Google Sheet terlebih dahulu!")
+                elif sumber_data_bidang == "🌐 Link Google Sheet (Otomatis Baca Sheet)" and df_map_gsheet.empty:
+                    st.error("⚠️ Menunggu data dari Google Sheet. Silakan pilih Tahapan (Sheet) yang benar.")
+                else:
+                    with st.spinner("Menyatukan data SIPD dengan pemetaan Bidang..."):
+                        try:
+                            # 1. Siapkan DataFrame sesuai sumber
+                            if sumber_data_bidang == "📂 Upload File Lokal (Excel/CSV)":
+                                if file_mapping_bidang.name.endswith('.csv'):
+                                    df_map = pd.read_csv(file_mapping_bidang)
+                                else:
+                                    df_map = pd.read_excel(file_mapping_bidang)
+                            else:
+                                df_map = df_map_gsheet.copy()
+
+                            df_map.columns = df_map.columns.astype(str).str.lower().str.strip()
+                            
+                            # ✨ MAGIC AUTO-RENAME (Jaga-jaga kalau nama kolomnya beda sedikit)
+                            if 'nama bidang' in df_map.columns:
+                                df_map.rename(columns={'nama bidang': 'bidang'}, inplace=True)
+                            if 'code' in df_map.columns:
+                                df_map.rename(columns={'code': 'kode sub'}, inplace=True)
+                            
+                            # Cek kolom wajib
+                            if 'kode sub' not in df_map.columns or 'bidang' not in df_map.columns:
+                                st.error(f"❌ Ralat! File pemetaan harus memiliki kolom 'kode sub' dan 'bidang'. Kolom yang terdeteksi: {list(df_map.columns)}")
+                            else:
+                                # Bersihkan data pemetaan
+                                df_map = df_map[['kode sub', 'bidang']].rename(columns={'kode sub': 'kode_sub_kegiatan'})
+                                df_map['kode_sub_kegiatan'] = df_map['kode_sub_kegiatan'].astype(str).str.strip()
+                                df_map['bidang'] = df_map['bidang'].fillna("TIDAK ADA BIDANG")
+                                
+                                # Buang duplikasi jika ada kode sub yang ditulis berulang dalam file mapping
+                                df_map = df_map.drop_duplicates(subset=['kode_sub_kegiatan'])
+                                
+                                # 2. Filter data SIPD hanya untuk tahap awal dan tahap akhir
+                                df_sipd_filter = df_proses[df_proses['tahapan'].isin([tahap_awal, tahap_akhir])].copy()
+                                
+                                # 3. GABUNGKAN (VLOOKUP) Data SIPD dengan Pemetaan Bidang
+                                df_gabung = pd.merge(df_sipd_filter, df_map, on='kode_sub_kegiatan', how='left')
+                                
+                                # Jika ada sub kegiatan dalam SIPD yang tidak tersenarai di file mapping
+                                df_gabung['bidang'] = df_gabung['bidang'].fillna("TIDAK DIPETAKAN (Belum masuk file pemetaan)")
+                                
+                                # 4. GROUP BY (Fungsi SUMIFS berdasarkan 'bidang')
+                                rekap_bidang = df_gabung.groupby(['bidang', 'tahapan'])['pagu'].sum().reset_index()
+                                
+                                # 5. PIVOT (Jadikan tahapan sebagai kolom menyamping)
+                                pivot_bidang = rekap_bidang.pivot_table(
+                                    index='bidang', 
+                                    columns='tahapan', 
+                                    values='pagu', 
+                                    aggfunc='sum', 
+                                    fill_value=0
+                                ).reset_index()
+                                
+                                # Pastikan kolom tahap awal dan akhir selalu ada
+                                for t in [tahap_awal, tahap_akhir]:
+                                    if t not in pivot_bidang.columns:
+                                        pivot_bidang[t] = 0
+                                        
+                                # 6. Hitung Selisih
+                                pivot_bidang['Selisih'] = pivot_bidang[tahap_akhir] - pivot_bidang[tahap_awal]
+                                
+                                # Ganti nama kolom untuk paparan supaya lebih rapi
+                                pivot_bidang.rename(columns={
+                                    'bidang': 'Nama Bidang (Internal)',
+                                    tahap_awal: f'Pagu {tahap_awal}',
+                                    tahap_akhir: f'Pagu {tahap_akhir}'
+                                }, inplace=True)
+                                
+                                st.success("✅ Rekapitulasi Per Bidang Selesai!")
+                                st.dataframe(
+                                    pivot_bidang, 
+                                    use_container_width=True,
+                                    column_config={
+                                        f'Pagu {tahap_awal}': st.column_config.NumberColumn(format="Rp %.0f"),
+                                        f'Pagu {tahap_akhir}': st.column_config.NumberColumn(format="Rp %.0f"),
+                                        "Selisih": st.column_config.NumberColumn(format="Rp %.0f")
+                                    }
+                                )
+                                
+                                # 7. Tombol Download Excel
+                                import io
+                                output_bidang = io.BytesIO()
+                                with pd.ExcelWriter(output_bidang, engine='openpyxl') as writer:
+                                    pivot_bidang.to_excel(writer, index=False, sheet_name='Rekap_Bidang_Internal')
+                                output_bidang.seek(0)
+                                
+                                st.download_button(
+                                    label="📥 Download Excel (Rekap Bidang)", 
+                                    data=output_bidang, 
+                                    file_name=f"Rekap_Bidang_Internal_{nama_file_export}_{tahun_pilihan}.xlsx", 
+                                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", 
+                                    type="primary",
+                                    key="dl_tab5_excel"
+                                )
+                                
+                        except Exception as e:
+                            st.error(f"❌ Terjadi kesalahan saat memproses data: {e}")
+
 
 
 
