@@ -841,7 +841,16 @@ elif menu_pilihan == "Rekap SIPD":
                 ['kode_sub_kegiatan', 'nama_sub_kegiatan', 'nama_skpd', tahap_awal, tahap_akhir, 'Selisih']
             ].reset_index(drop=True)
             
-            top10.columns = ['Kode Sub', 'Uraian Sub Kegiatan', 'SKPD', f'Pagu {tahap_awal}', f'Pagu {tahap_akhir}', 'Selisih']
+            
+            nama_awal = f"Pagu {tahap_awal}"
+            nama_akhir = f"Pagu {tahap_akhir}"
+            
+            # Jika sama, buat label berbeda agar tidak duplicate
+            if nama_awal == nama_akhir:
+                nama_awal = f"Pagu {tahap_awal} (Awal)"
+                nama_akhir = f"Pagu {tahap_akhir} (Akhir)"
+            
+            top10.columns = ['Kode Sub', 'Uraian Sub Kegiatan', 'SKPD', nama_awal, nama_akhir, 'Selisih'
             
             if not top10.empty:
                 kolom_angka_top = [f'Pagu {tahap_awal}', f'Pagu {tahap_akhir}', 'Selisih']
@@ -1526,4 +1535,5 @@ elif menu_pilihan == "Rekap SIPD":
                 file_name=f"Rekap_Jenis_Belanja_{tahun_pilihan}.xlsx",
                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
             )
+
 
