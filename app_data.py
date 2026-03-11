@@ -1465,7 +1465,7 @@ elif menu_pilihan == "Rekap SIPD":
                 col_awal = tahap_awal
                 col_akhir = tahap_akhir
                 urutan_kolom = ['Major Rek', 'nama_rekening', col_awal, col_akhir, 'Selisih']
-            for col in urutan_kolom:
+            for col in urutankolom:
                 if col not in pivot_rek.columns:
                     pivot_rek[col] = 0
             pivot_rek = pivot_rek[urutan_kolom]
@@ -1589,14 +1589,29 @@ elif menu_pilihan == "Rekap SIPD":
                     use_container_width=True,
                     column_config={t: st.column_config.NumberColumn(format="Rp %.0f") for t in list_tahapan}
                 )
-                output_npd = io.BytesIO()
-                with pd.ExcelWriter(output_npd, engine='openpyxl') as writer:
-                    pivot_npd.to_excel(writer, index=False, sheet_name='Rekap_NPD')
-                output_npd.seek(0)
+                # --- Export ke template NPD.xlsx ---
+                import openpyxl
+                from openpyxl.utils import get_column_letter
+                template_path = "NPD.xlsx"
+                wb = openpyxl.load_workbook(template_path)
+                ws = wb["KEUANGAN"]
+                # Tentukan baris awal untuk data (misal baris 10, sesuaikan jika perlu)
+                start_row = 10
+                # Header mapping: urut_npd
+                for i, col_name in enumerate(urut_npd, 1):
+                    ws.cell(row=start_row-1, column=i, value=col_name)
+                # Tulis data
+                for idx, row in pivot_npd.iterrows():
+                    for col_idx, col_name in enumerate(urut_npd, 1):
+                        ws.cell(row=start_row+idx, column=col_idx, value=row[col_name])
+                # Simpan ke BytesIO
+                output_npd_template = io.BytesIO()
+                wb.save(output_npd_template)
+                output_npd_template.seek(0)
                 st.download_button(
-                    label="📥 Download Rekap NPD (Excel)",
-                    data=output_npd,
-                    file_name=f"Rekap_NPD_{tahun_pilihan}.xlsx",
+                    label="📥 Download Rekap NPD (Excel Template)",
+                    data=output_npd_template,
+                    file_name=f"Rekap_NPD_{tahun_pilihan}_template.xlsx",
                     mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
                 )
 
