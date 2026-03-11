@@ -678,14 +678,15 @@ elif menu_pilihan == "Rekap SIPD":
         # ==========================================
         # 3. PEMBUATAN TAB MENU
         # ==========================================
-        tab0, tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
+        tab0, tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs([
             "📊 Dashboard",
             "📑 Rekap Hierarki",
             "💰 Rekap Sumber Dana",
             "🔗 Integrasi Link DPA",
             "📈 Evaluasi Realisasi",
             "🏢 Rekap Per Bidang",
-            "📦 Rekap Kode Rekening"   # <--- Tambahan baru!
+            "📦 Rekap Kode Rekening",
+            "📝 Rekap NPD"  # Tab baru untuk filter SKPD & Sub Kegiatan
         ])
 
                 # -------------------------------------------------------------------
@@ -1535,6 +1536,59 @@ elif menu_pilihan == "Rekap SIPD":
                 file_name=f"Rekap_Jenis_Belanja_{tahun_pilihan}.xlsx",
                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
             )
+        
+        # -------------------------------------------------------------------
+        # TAB 7: REKAP NPD (NOTA PENCairan DANA)
+        # -------------------------------------------------------------------
+        with tab7:
+            st.markdown("### 📝 Rekap NPD (Nota Pencairan Dana)")
+            # Filter SKPD
+            list_skpd_npd = sorted([s for s in df_proses['nama_skpd'].unique() if s != ""])
+            list_skpd_npd.insert(0, "SEMUA SKPD")
+            skpd_npd = st.multiselect("🏢 Pilih SKPD:", list_skpd_npd, default=["SEMUA SKPD"])
+            # Filter Sub Kegiatan
+            if "SEMUA SKPD" in skpd_npd:
+                df_npd = df_proses.copy()
+            else:
+                df_npd = df_proses[df_proses['nama_skpd'].isin(skpd_npd)].copy()
+            list_sub_npd = sorted([s for s in df_npd['nama_sub_kegiatan'].unique() if s != ""])
+            sub_npd = st.multiselect("🔍 Pilih Sub Kegiatan:", list_sub_npd, default=list_sub_npd)
+            if sub_npd:
+                df_npd = df_npd[df_npd['nama_sub_kegiatan'].isin(sub_npd)]
+            if df_npd.empty:
+                st.warning("Tidak ada data untuk pilihan filter ini.")
+            else:
+                df_npd_rek = df_npd[df_npd['kode_rekening'] != ""].copy()
+                df_npd_rek['Major Rek'] = df_npd_rek['kode_rekening'].str.slice(0, 5)
+                rekap_npd = df_npd_rek.groupby(['Major Rek', 'nama_rekening', 'nama_skpd', 'nama_sub_kegiatan', 'tahapan'])['pagu'].sum().reset_index()
+                pivot_npd = rekap_npd.pivot_table(
+                    index=['Major Rek', 'nama_rekening', 'nama_skpd', 'nama_sub_kegiatan'],
+                    columns='tahapan',
+                    values='pagu',
+                    aggfunc='sum',
+                    fill_value=0
+                ).reset_index()
+                for t in list_tahapan:
+                    if t not in pivot_npd.columns:
+                        pivot_npd[t] = 0
+                pivot_npd['Selisih'] = pivot_npd[tahap_akhir] - pivot_npd[tahap_awal]
+                urut_npd = ['Major Rek', 'nama_rekening', 'nama_skpd', 'nama_sub_kegiatan'] + list_tahapan + ['Selisih']
+                pivot_npd = pivot_npd[urut_npd]
+                st.dataframe(
+                    pivot_npd,
+                    use_container_width=True,
+                    column_config={t: st.column_config.NumberColumn(format="Rp %.0f") for t in list_tahapan}
+                )
+                output_npd = io.BytesIO()
+                with pd.ExcelWriter(output_npd, engine='openpyxl') as writer:
+                    pivot_npd.to_excel(writer, index=False, sheet_name='Rekap_NPD')
+                output_npd.seek(0)
+                st.download_button(
+                    label="📥 Download Rekap NPD (Excel)",
+                    data=output_npd,
+                    file_name=f"Rekap_NPD_{tahun_pilihan}.xlsx",
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                )
 
 
 
