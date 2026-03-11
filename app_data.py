@@ -18,17 +18,8 @@ import plotly.graph_objects as go
 st.set_page_config(page_title="Olah Data & SIPD", layout="wide", page_icon="📊")
 st.markdown("""
 <style>
-/* Paksa teks menu sidebar tetap terlihat saat hover */
-.nav-link {
-    color: inherit !important;
-}
-
 .nav-link:hover {
     background-color: #262730 !important;
-    color: #FFFFFF !important;
-}
-
-.nav-link-selected {
     color: #FFFFFF !important;
 }
 </style>
