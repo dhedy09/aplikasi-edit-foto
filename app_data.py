@@ -18,9 +18,38 @@ import plotly.graph_objects as go
 st.set_page_config(page_title="Olah Data & SIPD", layout="wide", page_icon="📊")
 st.markdown("""
 <style>
-.nav-link:hover {
+/* ================================
+   PERBAIKAN HOVER MENU SIDEBAR
+   ================================ */
+
+/* Warna teks menu normal */
+section[data-testid="stSidebar"] .nav-link,
+section[data-testid="stSidebar"] a.nav-link,
+section[data-testid="stSidebar"] .nav-link span {
+    color: #FFFFFF !important;
+}
+
+/* Saat cursor diarahkan ke menu */
+section[data-testid="stSidebar"] .nav-link:hover,
+section[data-testid="stSidebar"] a.nav-link:hover,
+section[data-testid="stSidebar"] .nav-link:hover span,
+section[data-testid="stSidebar"] a.nav-link:hover span {
     background-color: #262730 !important;
     color: #FFFFFF !important;
+}
+
+/* Saat menu aktif / dipilih */
+section[data-testid="stSidebar"] .nav-link.active,
+section[data-testid="stSidebar"] a.nav-link.active,
+section[data-testid="stSidebar"] .nav-link.active span,
+section[data-testid="stSidebar"] a.nav-link.active span {
+    color: #FFFFFF !important;
+}
+
+/* Ikon juga tetap terlihat saat hover */
+section[data-testid="stSidebar"] .nav-link:hover i,
+section[data-testid="stSidebar"] a.nav-link:hover i {
+    color: #ffc107 !important;
 }
 </style>
 """, unsafe_allow_html=True)
@@ -75,14 +104,29 @@ with st.sidebar:
     menu_pilihan = option_menu(
         menu_title=None,
         options=["Alat Excel", "Import SIPD", "Rekap SIPD"],
-        icons=["wrench-adjustable", "cloud-arrow-up-fill", "bar-chart-steps"], 
+        icons=["wrench-adjustable", "cloud-arrow-up-fill", "bar-chart-steps"],
         default_index=0,
         key="menu_utama",
         styles={
-            "container": {"padding": "0!important", "background-color": "transparent"},
-            "icon": {"color": "#ffc107", "font-size": "18px"}, 
-            "nav-link": {"font-size": "15px", "text-align": "left", "margin":"5px", "--hover-color": "#262730"},
-            "nav-link": {"font-size": "15px","text-align": "left","margin": "5px","--hover-color": "#3A3B40"},
+            "container": {
+                "padding": "0!important",
+                "background-color": "transparent"
+            },
+            "icon": {
+                "color": "#ffc107",
+                "font-size": "18px"
+            },
+            "nav-link": {
+                "font-size": "15px",
+                "text-align": "left",
+                "margin": "5px",
+                "color": "white",
+                "--hover-color": "#262730"
+            },
+            "nav-link-selected": {
+                "background-color": "#C62828",
+                "color": "white"
+            },
         }
     )
     
