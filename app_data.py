@@ -678,15 +678,14 @@ elif menu_pilihan == "Rekap SIPD":
         # ==========================================
         # 3. PEMBUATAN TAB MENU
         # ==========================================
-        tab0, tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs([
+        tab0, tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
             "📊 Dashboard",
             "📑 Rekap Hierarki",
             "💰 Rekap Sumber Dana",
             "🔗 Integrasi Link DPA",
             "📈 Evaluasi Realisasi",
             "🏢 Rekap Per Bidang",
-            "📦 Rekap Kode Rekening",
-            "📝 Rekap NPD"  # Tab baru untuk filter SKPD & Sub Kegiatan
+            "📦 Rekap Kode Rekening"  # Tab baru, dulunya NPD
         ])
 
                 # -------------------------------------------------------------------
@@ -1086,7 +1085,7 @@ elif menu_pilihan == "Rekap SIPD":
                                         df_rekap_dpa[col_opt] = ""
                                     df_rekap_dpa[col_opt] = df_rekap_dpa[col_opt].fillna("")
 
-                                kolom_final_dpa = ['Link DPA', 'Kode', 'Uraian', 'Rincian Sumber Dana', 'Anggaran Sebelum', 'Anggaran Sesudah', 'Selisih', 'Level']
+                                kolom_final_dpa = ['Link DPA', 'Kode', 'Urian', 'Rincian Sumber Dana', 'Anggaran Sebelum', 'Anggaran Sesudah', 'Selisih', 'Level']
                                 df_hasil_dpa = df_rekap_dpa[[c for c in kolom_final_dpa if c in df_rekap_dpa.columns]].copy()
 
                                 df_tampil_dpa = df_hasil_dpa.drop(columns=['Level'])
@@ -1432,121 +1431,11 @@ elif menu_pilihan == "Rekap SIPD":
                         except Exception as e:
                             st.error(f"❌ Terjadi kesalahan saat memproses data: {e}")
 
-        # -------------------------------------
-        # TAB 6: REKAP KODE REKENING dan GRUP JENIS BELANJA
-        # -------------------------------------                   
+        # -------------------------------------------------------------------
+        # TAB 6: REKAP KODE REKENING (dulu NPD, model download = tabel streamlit)
+        # -------------------------------------------------------------------
         with tab6:
-            st.markdown("### 📦 Rekap Kode Rekening Anggaran (Detail & Grup Jenis Belanja)")
-            df_rek = df_proses.copy()
-            df_rek = df_rek[df_rek['tahapan'].isin([tahap_awal, tahap_akhir])]
-            df_rek = df_rek[df_rek['kode_rekening'] != ""]
-            df_rek['Major Rek'] = df_rek['kode_rekening'].str.slice(0, 5)
-            rekap_rekening = df_rek.groupby(['Major Rek', 'nama_rekening', 'tahapan'])['pagu'].sum().reset_index()
-            pivot_rek = rekap_rekening.pivot_table(
-                index=['Major Rek', 'nama_rekening'],
-                columns='tahapan',
-                values='pagu',
-                aggfunc='sum',
-                fill_value=0
-            ).reset_index()
-            for t in [tahap_awal, tahap_akhir]:
-                if t not in pivot_rek.columns:
-                    pivot_rek[t] = 0
-            pivot_rek['Selisih'] = pivot_rek[tahap_akhir] - pivot_rek[tahap_awal]
-            # Cek duplikat nama kolom
-            if tahap_awal == tahap_akhir:
-                col_awal = f"Pagu {tahap_awal} (Awal)"
-                col_akhir = f"Pagu {tahap_akhir} (Akhir)"
-                pivot_rek[col_awal] = pivot_rek[tahap_awal]
-                pivot_rek[col_akhir] = pivot_rek[tahap_akhir]
-                urutan_kolom = ['Major Rek', 'nama_rekening', col_awal, col_akhir, 'Selisih']
-            else:
-                col_awal = tahap_awal
-                col_akhir = tahap_akhir
-                urutan_kolom = ['Major Rek', 'nama_rekening', col_awal, col_akhir, 'Selisih']
-            for col in urutan_kolom:
-                if col not in pivot_rek.columns:
-                    pivot_rek[col] = 0
-            pivot_rek = pivot_rek[urutan_kolom]
-            total_row = pd.DataFrame([{col: pivot_rek[col].sum() if col in [col_awal, col_akhir, 'Selisih'] else 'TOTAL KESELURUHAN' if col == 'nama_rekening' else 'TOTAL' for col in urutan_kolom}])
-            total_row = total_row[pivot_rek.columns]
-            pivot_rek = pd.concat([pivot_rek, total_row], ignore_index=True)
-            st.markdown("#### 📄 Rekap Kode Rekening (Detail)")
-            st.dataframe(
-                pivot_rek,
-                use_container_width=True,
-                column_config={
-                    col_awal: st.column_config.NumberColumn(format="Rp %.0f"),
-                    col_akhir: st.column_config.NumberColumn(format="Rp %.0f"),
-                    "Selisih": st.column_config.NumberColumn(format="Rp %.0f"),
-                }
-            )
-            output_excel = io.BytesIO()
-            with pd.ExcelWriter(output_excel, engine='openpyxl') as writer:
-                pivot_rek.to_excel(writer, index=False, sheet_name='Rekap_Kode_Rekening')
-            output_excel.seek(0)
-            st.download_button(
-                label="📥 Download Rekap Kode Rekening (Excel)",
-                data=output_excel,
-                file_name=f"Rekap_Kode_Rekening_{tahun_pilihan}_{tahap_akhir}.xlsx",
-                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-            )
-        
-            st.markdown("---")
-        
-            # --- REKAP GRUP JENIS BELANJA (POINT D) ---
-            st.markdown("#### 📊 Rekap Grup Jenis Belanja (Operasi, Modal, Tak Terduga, Transfer, dll)")
-            df_jenis = df_proses[df_proses['kode_rekening'] != ""].copy()
-            df_jenis['Grup Rek'] = df_jenis['kode_rekening'].str.slice(0, 3)
-            mapping_grup = {
-                '5.1': 'Belanja Operasi',
-                '5.2': 'Belanja Modal',
-                '5.3': 'Belanja Tak Terduga',
-                '5.4': 'Belanja Transfer'
-            }
-            df_jenis['Nama Grup Rek'] = df_jenis['Grup Rek'].map(mapping_grup).fillna('Lainnya')
-            rekap_grup = df_jenis.groupby(['Grup Rek', 'Nama Grup Rek', 'tahapan'])['pagu'].sum().reset_index()
-            pivot_grup = rekap_grup.pivot_table(
-                index=['Grup Rek', 'Nama Grup Rek'],
-                columns='tahapan',
-                values='pagu',
-                aggfunc='sum',
-                fill_value=0
-            ).reset_index()
-            for t in list_tahapan:
-                if t not in pivot_grup.columns:
-                    pivot_grup[t] = 0
-            pivot_grup['Selisih'] = pivot_grup[tahap_akhir] - pivot_grup[tahap_awal]
-            urut_kolom = ['Grup Rek', 'Nama Grup Rek'] + list_tahapan + ['Selisih']
-            pivot_grup = pivot_grup[urut_kolom]
-            total_row_grup = pd.DataFrame([{
-                'Grup Rek': 'TOTAL',
-                'Nama Grup Rek': 'TOTAL KESELURUHAN',
-                **{t: pivot_grup[t].sum() for t in list_tahapan},
-                'Selisih': pivot_grup['Selisih'].sum()
-            }])
-            pivot_grup = pd.concat([pivot_grup, total_row_grup], ignore_index=True)
-            st.dataframe(
-                pivot_grup,
-                use_container_width=True,
-                column_config={t: st.column_config.NumberColumn(format="Rp %.0f") for t in list_tahapan}
-            )
-            output_excel_grup = io.BytesIO()
-            with pd.ExcelWriter(output_excel_grup, engine='openpyxl') as writer:
-                pivot_grup.to_excel(writer, index=False, sheet_name='Rekap_Jenis_Belanja')
-            output_excel_grup.seek(0)
-            st.download_button(
-                label="📥 Download Rekap Grup Jenis Belanja (Excel)",
-                data=output_excel_grup,
-                file_name=f"Rekap_Jenis_Belanja_{tahun_pilihan}.xlsx",
-                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-            )
-        
-        # -------------------------------------------------------------------
-        # TAB 7: REKAP NPD (NOTA PENCairan DANA)
-        # -------------------------------------------------------------------
-        with tab7:
-            st.markdown("### 📝 Rekap NPD (Nota Pencairan Dana)")
+            st.markdown("### 📦 Rekap Kode Rekening (dulu NPD)")
             # Filter SKPD
             list_skpd_npd = sorted([s for s in df_proses['nama_skpd'].unique() if s != ""])
             list_skpd_npd.insert(0, "SEMUA SKPD")
@@ -1578,7 +1467,6 @@ elif menu_pilihan == "Rekap SIPD":
                         pivot_npd[t] = 0
                 pivot_npd['Selisih'] = pivot_npd[tahap_akhir] - pivot_npd[tahap_awal]
                 urut_npd = ['Major Rek', 'nama_rekening', 'nama_skpd', 'nama_sub_kegiatan'] + list_tahapan + ['Selisih']
-                # Pastikan kolom urut_npd ada di pivot_npd
                 for col in urut_npd:
                     if col not in pivot_npd.columns:
                         pivot_npd[col] = 0
@@ -1588,29 +1476,15 @@ elif menu_pilihan == "Rekap SIPD":
                     use_container_width=True,
                     column_config={t: st.column_config.NumberColumn(format="Rp %.0f") for t in list_tahapan}
                 )
-                # --- Export ke template NPD.xlsx ---
-                import openpyxl
-                from openpyxl.utils import get_column_letter
-                template_path = "NPD.xlsx"
-                wb = openpyxl.load_workbook(template_path)
-                ws = wb["KEUANGAN"]
-                # Tentukan baris awal untuk data (misal baris 10, sesuaikan jika perlu)
-                start_row = 10
-                # Header mapping: urut_npd
-                for i, col_name in enumerate(urut_npd, 1):
-                    ws.cell(row=start_row-1, column=i, value=col_name)
-                # Tulis data
-                for idx, row in pivot_npd.iterrows():
-                    for col_idx, col_name in enumerate(urut_npd, 1):
-                        ws.cell(row=start_row+idx, column=col_idx, value=row[col_name])
-                # Simpan ke BytesIO
-                output_npd_template = io.BytesIO()
-                wb.save(output_npd_template)
-                output_npd_template.seek(0)
+                # Download sesuai tampilan tabel
+                output_npd = io.BytesIO()
+                with pd.ExcelWriter(output_npd, engine='openpyxl') as writer:
+                    pivot_npd.to_excel(writer, index=False, sheet_name='Rekap_Kode_Rekening')
+                output_npd.seek(0)
                 st.download_button(
-                    label="📥 Download Rekap NPD (Excel Template)",
-                    data=output_npd_template,
-                    file_name=f"Rekap_NPD_{tahun_pilihan}_template.xlsx",
+                    label="📥 Download Rekap Kode Rekening (Excel)",
+                    data=output_npd,
+                    file_name=f"Rekap_Kode_Rekening_{tahun_pilihan}.xlsx",
                     mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
                 )
 
