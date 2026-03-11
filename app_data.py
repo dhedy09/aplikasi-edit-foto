@@ -16,6 +16,23 @@ import plotly.graph_objects as go
 # 1. PENGATURAN HALAMAN
 # ==========================================
 st.set_page_config(page_title="Olah Data & SIPD", layout="wide", page_icon="📊")
+st.markdown("""
+<style>
+/* Paksa teks menu sidebar tetap terlihat saat hover */
+.nav-link {
+    color: inherit !important;
+}
+
+.nav-link:hover {
+    background-color: #262730 !important;
+    color: #FFFFFF !important;
+}
+
+.nav-link-selected {
+    color: #FFFFFF !important;
+}
+</style>
+""", unsafe_allow_html=True)
 
 # ==========================================
 # 2. KONEKSI KE DATABASE SUPABASE
