@@ -18,18 +18,20 @@ import plotly.graph_objects as go
 st.set_page_config(page_title="Olah Data & SIPD", layout="wide", page_icon="📊")
 st.markdown("""
 <style>
-/* ================================
-   PERBAIKAN HOVER MENU SIDEBAR
-   ================================ */
+/* =========================================
+   MENU SIDEBAR ADAPTIF KE TEMA STREAMLIT
+   ========================================= */
 
-/* Warna teks menu normal */
+/* Status normal: ikut warna teks bawaan tema/sidebar */
 section[data-testid="stSidebar"] .nav-link,
 section[data-testid="stSidebar"] a.nav-link,
-section[data-testid="stSidebar"] .nav-link span {
-    color: #FFFFFF !important;
+section[data-testid="stSidebar"] .nav-link span,
+section[data-testid="stSidebar"] a.nav-link span {
+    color: inherit !important;
+    background-color: transparent !important;
 }
 
-/* Saat cursor diarahkan ke menu */
+/* Hover: background gelap, teks putih */
 section[data-testid="stSidebar"] .nav-link:hover,
 section[data-testid="stSidebar"] a.nav-link:hover,
 section[data-testid="stSidebar"] .nav-link:hover span,
@@ -38,17 +40,29 @@ section[data-testid="stSidebar"] a.nav-link:hover span {
     color: #FFFFFF !important;
 }
 
-/* Saat menu aktif / dipilih */
+/* Selected / aktif: merah, teks putih */
 section[data-testid="stSidebar"] .nav-link.active,
 section[data-testid="stSidebar"] a.nav-link.active,
 section[data-testid="stSidebar"] .nav-link.active span,
-section[data-testid="stSidebar"] a.nav-link.active span {
+section[data-testid="stSidebar"] a.nav-link.active span,
+section[data-testid="stSidebar"] .nav-link-selected,
+section[data-testid="stSidebar"] .nav-link-selected span {
+    background-color: #C62828 !important;
     color: #FFFFFF !important;
 }
 
-/* Ikon juga tetap terlihat saat hover */
+/* Ikon menu */
+section[data-testid="stSidebar"] .nav-link i,
+section[data-testid="stSidebar"] a.nav-link i {
+    color: #ffc107 !important;
+}
+
+/* Ikon saat hover / aktif */
 section[data-testid="stSidebar"] .nav-link:hover i,
-section[data-testid="stSidebar"] a.nav-link:hover i {
+section[data-testid="stSidebar"] a.nav-link:hover i,
+section[data-testid="stSidebar"] .nav-link.active i,
+section[data-testid="stSidebar"] a.nav-link.active i,
+section[data-testid="stSidebar"] .nav-link-selected i {
     color: #ffc107 !important;
 }
 </style>
