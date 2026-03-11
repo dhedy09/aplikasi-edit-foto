@@ -134,7 +134,6 @@ with st.sidebar:
                 "font-size": "15px",
                 "text-align": "left",
                 "margin": "5px",
-                "color": "white",
                 "--hover-color": "#262730"
             },
             "nav-link-selected": {
