@@ -834,7 +834,6 @@ elif menu_pilihan == "Rekap SIPD":
             for t in [tahap_awal, tahap_akhir]:
                 if t not in pivot_selisih.columns:
                     pivot_selisih[t] = 0
-            
             pivot_selisih['Selisih'] = pivot_selisih[tahap_akhir] - pivot_selisih[tahap_awal]
             pivot_selisih['Abs_Selisih'] = pivot_selisih['Selisih'].abs()
             
@@ -1465,7 +1464,7 @@ elif menu_pilihan == "Rekap SIPD":
                 col_awal = tahap_awal
                 col_akhir = tahap_akhir
                 urutan_kolom = ['Major Rek', 'nama_rekening', col_awal, col_akhir, 'Selisih']
-            for col in urutankolom:
+            for col in urutan_kolom:
                 if col not in pivot_rek.columns:
                     pivot_rek[col] = 0
             pivot_rek = pivot_rek[urutan_kolom]
