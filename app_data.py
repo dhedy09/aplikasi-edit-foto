@@ -1438,8 +1438,6 @@ elif menu_pilihan == "Rekap SIPD":
         # -------------------------------------                   
         with tab6:
             st.markdown("### 📦 Rekap Kode Rekening Anggaran (Detail & Grup Jenis Belanja)")
-        
-            # --- REKAP KODE REKENING DETAIL (seperti sebelumnya) ---
             df_rek = df_proses.copy()
             df_rek = df_rek[df_rek['tahapan'].isin([tahap_awal, tahap_akhir])]
             df_rek = df_rek[df_rek['kode_rekening'] != ""]
@@ -1456,14 +1454,22 @@ elif menu_pilihan == "Rekap SIPD":
                 if t not in pivot_rek.columns:
                     pivot_rek[t] = 0
             pivot_rek['Selisih'] = pivot_rek[tahap_akhir] - pivot_rek[tahap_awal]
-            urutan_kolom = ['Major Rek', 'nama_rekening', tahap_awal, tahap_akhir, 'Selisih']
-            # Pastikan kolom urutan_kolom ada di pivot_rek
+            # Cek duplikat nama kolom
+            if tahap_awal == tahap_akhir:
+                col_awal = f"Pagu {tahap_awal} (Awal)"
+                col_akhir = f"Pagu {tahap_akhir} (Akhir)"
+                pivot_rek[col_awal] = pivot_rek[tahap_awal]
+                pivot_rek[col_akhir] = pivot_rek[tahap_akhir]
+                urutan_kolom = ['Major Rek', 'nama_rekening', col_awal, col_akhir, 'Selisih']
+            else:
+                col_awal = tahap_awal
+                col_akhir = tahap_akhir
+                urutan_kolom = ['Major Rek', 'nama_rekening', col_awal, col_akhir, 'Selisih']
             for col in urutan_kolom:
                 if col not in pivot_rek.columns:
                     pivot_rek[col] = 0
             pivot_rek = pivot_rek[urutan_kolom]
-            total_row = pd.DataFrame([{col: pivot_rek[col].sum() if col in [tahap_awal, tahap_akhir, 'Selisih'] else 'TOTAL KESELURUHAN' if col == 'nama_rekening' else 'TOTAL' for col in urutan_kolom}])
-            # Pastikan kolom total_row identik dengan pivot_rek
+            total_row = pd.DataFrame([{col: pivot_rek[col].sum() if col in [col_awal, col_akhir, 'Selisih'] else 'TOTAL KESELURUHAN' if col == 'nama_rekening' else 'TOTAL' for col in urutan_kolom}])
             total_row = total_row[pivot_rek.columns]
             pivot_rek = pd.concat([pivot_rek, total_row], ignore_index=True)
             st.markdown("#### 📄 Rekap Kode Rekening (Detail)")
@@ -1471,8 +1477,8 @@ elif menu_pilihan == "Rekap SIPD":
                 pivot_rek,
                 use_container_width=True,
                 column_config={
-                    tahap_awal: st.column_config.NumberColumn(format="Rp %.0f"),
-                    tahap_akhir: st.column_config.NumberColumn(format="Rp %.0f"),
+                    col_awal: st.column_config.NumberColumn(format="Rp %.0f"),
+                    col_akhir: st.column_config.NumberColumn(format="Rp %.0f"),
                     "Selisih": st.column_config.NumberColumn(format="Rp %.0f"),
                 }
             )
