@@ -91,7 +91,7 @@ with st.sidebar:
             "container": {"padding": "0!important", "background-color": "transparent"},
             "icon": {"color": "#ffc107", "font-size": "18px"}, 
             "nav-link": {"font-size": "15px", "text-align": "left", "margin":"5px", "--hover-color": "#262730"},
-            "nav-link-selected": {"background-color": "#0083B8", "color": "white"},
+            "nav-link": {"font-size": "15px","text-align": "left","margin": "5px","--hover-color": "#3A3B40"},
         }
     )
     
