@@ -1456,15 +1456,15 @@ elif menu_pilihan == "Rekap SIPD":
                 if t not in pivot_rek.columns:
                     pivot_rek[t] = 0
             pivot_rek['Selisih'] = pivot_rek[tahap_akhir] - pivot_rek[tahap_awal]
-            urutan_kolom = [tahap_awal, tahap_akhir]
-            pivot_rek = pivot_rek[['Major Rek', 'nama_rekening'] + urutan_kolom + ['Selisih']]
-            total_row = pd.DataFrame([{
-                'Major Rek': 'TOTAL',
-                'nama_rekening': 'TOTAL KESELURUHAN',
-                tahap_awal: pivot_rek[tahap_awal].sum(),
-                tahap_akhir: pivot_rek[tahap_akhir].sum(),
-                'Selisih': pivot_rek['Selisih'].sum()
-            }])
+            urutan_kolom = ['Major Rek', 'nama_rekening', tahap_awal, tahap_akhir, 'Selisih']
+            # Pastikan kolom urutan_kolom ada di pivot_rek
+            for col in urutan_kolom:
+                if col not in pivot_rek.columns:
+                    pivot_rek[col] = 0
+            pivot_rek = pivot_rek[urutan_kolom]
+            total_row = pd.DataFrame([{col: pivot_rek[col].sum() if col in [tahap_awal, tahap_akhir, 'Selisih'] else 'TOTAL KESELURUHAN' if col == 'nama_rekening' else 'TOTAL' for col in urutan_kolom}])
+            # Pastikan kolom total_row identik dengan pivot_rek
+            total_row = total_row[pivot_rek.columns]
             pivot_rek = pd.concat([pivot_rek, total_row], ignore_index=True)
             st.markdown("#### 📄 Rekap Kode Rekening (Detail)")
             st.dataframe(
@@ -1573,6 +1573,10 @@ elif menu_pilihan == "Rekap SIPD":
                         pivot_npd[t] = 0
                 pivot_npd['Selisih'] = pivot_npd[tahap_akhir] - pivot_npd[tahap_awal]
                 urut_npd = ['Major Rek', 'nama_rekening', 'nama_skpd', 'nama_sub_kegiatan'] + list_tahapan + ['Selisih']
+                # Pastikan kolom urut_npd ada di pivot_npd
+                for col in urut_npd:
+                    if col not in pivot_npd.columns:
+                        pivot_npd[col] = 0
                 pivot_npd = pivot_npd[urut_npd]
                 st.dataframe(
                     pivot_npd,
