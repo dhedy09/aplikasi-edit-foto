@@ -744,81 +744,121 @@ elif menu_pilihan == "Rekap SIPD":
             # GRAFIK 1: Bar Chart Perbandingan Pagu per Tahapan
             with col_chart1:
                 st.markdown("##### 📊 Perbandingan Total Pagu per Tahapan")
-                
                 data_bar = []
                 for t in list_tahapan:
                     total = metrik_per_tahapan.get(t, 0)
                     data_bar.append({"Tahapan": t, "Total Pagu": total})
                 df_bar = pd.DataFrame(data_bar)
-                
                 fig_bar = px.bar(
                     df_bar, x="Tahapan", y="Total Pagu",
                     color="Tahapan",
                     text_auto=True,
-                    color_discrete_sequence=px.colors.qualitative.Set2
+                    color_discrete_sequence=px.colors.sequential.Blues,
                 )
-                fig_bar.update_traces(texttemplate='%{y:,.0f}', textposition='outside', textfont_size=10)
+                fig_bar.update_traces(
+                    texttemplate='%{y:,.0f}', textposition='outside', textfont_size=14,
+                    marker_line_width=2, marker_line_color='white',
+                    hovertemplate='<b>%{x}</b><br>Total Pagu: Rp %{y:,.0f}<extra></extra>'
+                )
                 fig_bar.update_layout(
-                    showlegend=False, 
+                    showlegend=False,
                     yaxis_title="Total Pagu (Rp)",
                     xaxis_title="",
-                    height=400,
-                    margin=dict(t=20, b=20)
+                    height=420,
+                    margin=dict(t=30, b=30, l=10, r=10),
+                    plot_bgcolor='#f7f7f7',
+                    font=dict(family="Roboto", size=16, color="#222", weight="bold"),
+                    transition={'duration': 500},
                 )
-                st.plotly_chart(fig_bar, use_container_width=True)
-            
+                fig_bar.update_yaxes(gridcolor='#e0e0e0', zeroline=False)
+                fig_bar.update_xaxes(gridcolor='#e0e0e0', zeroline=False)
+                st.plotly_chart(fig_bar, use_container_width=True, config={"displayModeBar": True, "scrollZoom": True})
+                # Tombol download PNG
+                png_bar = fig_bar.to_image(format="png", scale=3)
+                st.download_button(
+                    label="📥 Download Chart (PNG)",
+                    data=png_bar,
+                    file_name="BarChart_PaguTahapan.png",
+                    mime="image/png"
+                )
+
             # GRAFIK 2: Pie Chart Komposisi Sumber Dana
             with col_chart2:
                 st.markdown(f"##### 🥧 Komposisi Sumber Dana ({tahap_akhir})")
-                
                 df_sd_dash = df_dash[df_dash['tahapan'] == tahap_akhir].copy()
                 df_sd_dash['nama_sumber_dana'] = df_sd_dash['nama_sumber_dana'].replace("", "TIDAK DIKETAHUI")
                 sd_pie = df_sd_dash.groupby('nama_sumber_dana')['pagu'].sum().reset_index()
                 sd_pie = sd_pie[sd_pie['pagu'] > 0].sort_values('pagu', ascending=False)
-                
                 if not sd_pie.empty:
                     fig_pie = px.pie(
                         sd_pie, names="nama_sumber_dana", values="pagu",
-                        color_discrete_sequence=px.colors.qualitative.Pastel,
-                        hole=0.35
+                        color_discrete_sequence=px.colors.sequential.PuBu,
+                        hole=0.35,
                     )
-                    fig_pie.update_traces(textinfo='percent+label', textposition='outside', textfont_size=10)
+                    fig_pie.update_traces(
+                        textinfo='percent+label', textposition='outside', textfont_size=14,
+                        pull=[0.05]*len(sd_pie),
+                        hovertemplate='<b>%{label}</b><br>Pagu: Rp %{value:,.0f}<extra></extra>'
+                    )
                     fig_pie.update_layout(
                         showlegend=False,
-                        height=400,
-                        margin=dict(t=20, b=20)
+                        height=420,
+                        margin=dict(t=30, b=30, l=10, r=10),
+                        font=dict(family="Roboto", size=16, color="#222", weight="bold"),
+                        plot_bgcolor='#f7f7f7',
+                        transition={'duration': 500},
                     )
-                    st.plotly_chart(fig_pie, use_container_width=True)
+                    st.plotly_chart(fig_pie, use_container_width=True, config={"displayModeBar": True, "scrollZoom": True})
+                    # Tombol download PNG
+                    png_pie = fig_pie.to_image(format="png", scale=3)
+                    st.download_button(
+                        label="📥 Download Chart (PNG)",
+                        data=png_pie,
+                        file_name="PieChart_SumberDana.png",
+                        mime="image/png"
+                    )
                 else:
                     st.info("Tidak ada data sumber dana untuk ditampilkan.")
-            
+
             st.markdown("---")
             
-            # ---------- GRAFIK 3: Bar Chart Pagu per SKPD ----------
+            # GRAFIK 3: Bar Chart Pagu per SKPD
             st.markdown(f"##### 🏢 Pagu per SKPD ({tahap_akhir})")
-            
             df_skpd_dash = df_dash[df_dash['tahapan'] == tahap_akhir].groupby(['kode_skpd', 'nama_skpd'])['pagu'].sum().reset_index()
             df_skpd_dash = df_skpd_dash.sort_values('pagu', ascending=True)
-            
             if not df_skpd_dash.empty:
-                # Potong nama SKPD agar tidak terlalu panjang di grafik
                 df_skpd_dash['label_skpd'] = df_skpd_dash['nama_skpd'].str[:40]
-                
                 fig_skpd = px.bar(
                     df_skpd_dash, x="pagu", y="label_skpd",
                     orientation='h',
                     text_auto=True,
-                    color_discrete_sequence=["#0083B8"]
+                    color_discrete_sequence=["#0083B8"],
                 )
-                fig_skpd.update_traces(texttemplate='%{x:,.0f}', textposition='outside', textfont_size=9)
+                fig_skpd.update_traces(
+                    texttemplate='%{x:,.0f}', textposition='outside', textfont_size=13,
+                    marker_line_width=2, marker_line_color='white',
+                    hovertemplate='<b>%{y}</b><br>Total Pagu: Rp %{x:,.0f}<extra></extra>'
+                )
                 fig_skpd.update_layout(
                     xaxis_title="Total Pagu (Rp)",
                     yaxis_title="",
-                    height=max(300, len(df_skpd_dash) * 40),
-                    margin=dict(t=20, b=20, l=10)
+                    height=max(320, len(df_skpd_dash) * 38),
+                    margin=dict(t=30, b=30, l=10, r=10),
+                    plot_bgcolor='#f7f7f7',
+                    font=dict(family="Roboto", size=15, color="#222", weight="bold"),
+                    transition={'duration': 500},
                 )
-                st.plotly_chart(fig_skpd, use_container_width=True)
-            
+                fig_skpd.update_xaxes(gridcolor='#e0e0e0', zeroline=False)
+                fig_skpd.update_yaxes(gridcolor='#e0e0e0', zeroline=False)
+                st.plotly_chart(fig_skpd, use_container_width=True, config={"displayModeBar": True, "scrollZoom": True})
+                # Tombol download PNG
+                png_skpd = fig_skpd.to_image(format="png", scale=3)
+                st.download_button(
+                    label="📥 Download Chart (PNG)",
+                    data=png_skpd,
+                    file_name="BarChart_PaguSKPD.png",
+                    mime="image/png"
+                )
             st.markdown("---")
             
             # ---------- TABEL: TOP 10 SELISIH TERBESAR ----------
