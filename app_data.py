@@ -756,11 +756,12 @@ elif menu_pilihan == "Rekap SIPD":
                     total = metrik_per_tahapan.get(t, 0)
                     data_bar.append({"Tahapan": t, "Total Pagu": total})
                 df_bar = pd.DataFrame(data_bar)
+                custom_bar_colors = ["#0083B8", "#26A69A", "#43A047", "#FFE082", "#f7f7f7"]
                 fig_bar = px.bar(
                     df_bar, x="Tahapan", y="Total Pagu",
                     color="Tahapan",
                     text_auto=True,
-                    color_discrete_sequence=px.colors.sequential.PuBu,
+                    color_discrete_sequence=custom_bar_colors,
                 )
                 fig_bar.update_traces(
                     texttemplate='%{y:,.0f}', textposition='outside', textfont_size=14,
@@ -782,7 +783,6 @@ elif menu_pilihan == "Rekap SIPD":
                 st.plotly_chart(fig_bar, use_container_width=True, config={"displayModeBar": True, "scrollZoom": True})
                 # Tombol download PNG
                 try:
-                    import kaleido
                     png_bar = fig_bar.to_image(format="png", scale=3)
                     st.download_button(
                         label="📥 Download Chart (PNG)",
@@ -802,10 +802,11 @@ elif menu_pilihan == "Rekap SIPD":
                 df_sd_dash['nama_sumber_dana'] = df_sd_dash['nama_sumber_dana'].replace("", "TIDAK DIKETAHUI")
                 sd_pie = df_sd_dash.groupby('nama_sumber_dana')['pagu'].sum().reset_index()
                 sd_pie = sd_pie[sd_pie['pagu'] > 0].sort_values('pagu', ascending=False)
+                custom_pie_colors = ["#26A69A", "#43A047", "#FFE082", "#0083B8", "#f7f7f7"]
                 if not sd_pie.empty:
                     fig_pie = px.pie(
                         sd_pie, names="nama_sumber_dana", values="pagu",
-                        color_discrete_sequence=px.colors.sequential.PuBu,
+                        color_discrete_sequence=custom_pie_colors,
                         hole=0.35,
                     )
                     fig_pie.update_traces(
@@ -824,7 +825,6 @@ elif menu_pilihan == "Rekap SIPD":
                     st.plotly_chart(fig_pie, use_container_width=True, config={"displayModeBar": True, "scrollZoom": True})
                     # Tombol download PNG
                     try:
-                        import kaleido
                         png_pie = fig_pie.to_image(format="png", scale=3)
                         st.download_button(
                             label="📥 Download Chart (PNG)",
@@ -843,7 +843,7 @@ elif menu_pilihan == "Rekap SIPD":
             
             # GRAFIK 3: Bar Chart Pagu per SKPD
             st.markdown(f"##### 🏢 Pagu per SKPD ({tahap_akhir})")
-            df_skpd_dash = df_dash[df_dash['tahapan'] == tahap_akhir].groupby(['kode_skpd', 'nama_skpd'])['pagu'].sum().reset_index()
+            df_skpd_dash = df_dash[df_dash['tahapan'] == tahap_akhir].groupby(['kode_skpd', 'nama_skpd'])
             df_skpd_dash = df_skpd_dash.sort_values('pagu', ascending=True)
             if not df_skpd_dash.empty:
                 df_skpd_dash['label_skpd'] = df_skpd_dash['nama_skpd'].str[:40]
