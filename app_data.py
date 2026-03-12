@@ -630,18 +630,24 @@ elif menu_pilihan == "Rekap SIPD":
                         st.markdown(f"🔸 `{k_lama}` → `{k_baru}`")
                     with col_hapus:
                         if st.button("🗑️ Hapus", key=f"hapus_sotk_{k_lama}_{k_baru}_{idx}"):
-                            supabase.table("mapping_sotk").delete().eq("kode_lama", k_lama).eq("tahun", tahun_pilihan).execute()
-                            load_mapping_sotk.clear()
-                            st.session_state["mapping_alert"] = "hapus"
-                            st.session_state.mapping_sotk = load_mapping_sotk(tahun_pilihan)
-                            st.rerun()
+                            resp = supabase.table("mapping_sotk").delete().eq("kode_lama", k_lama).eq("tahun", tahun_pilihan).execute()
+                            if resp.data:
+                                load_mapping_sotk.clear()
+                                st.session_state["mapping_alert"] = "hapus"
+                                st.session_state.mapping_sotk = load_mapping_sotk(tahun_pilihan)
+                                st.rerun()
+                            else:
+                                st.error("❌ Gagal menghapus mapping di database Supabase.")
                 # Tombol hapus semua mapping - di luar loop!
                 if st.button("🧹 Hapus Semua Mapping", key="hapus_semua_sotk_db"):
-                    supabase.table("mapping_sotk").delete().eq("tahun", tahun_pilihan).execute()
-                    load_mapping_sotk.clear()
-                    st.session_state["mapping_alert"] = "hapus_semua"
-                    st.session_state.mapping_sotk = {}
-                    st.rerun()
+                    resp = supabase.table("mapping_sotk").delete().eq("tahun", tahun_pilihan).execute()
+                    if resp.data:
+                        load_mapping_sotk.clear()
+                        st.session_state["mapping_alert"] = "hapus_semua"
+                        st.session_state.mapping_sotk = {}
+                        st.rerun()
+                    else:
+                        st.error("❌ Gagal menghapus semua mapping di database Supabase.")
             else:
                 st.info("Belum ada mapping. Sistem akan berfungsi seperti biasa.")
 
