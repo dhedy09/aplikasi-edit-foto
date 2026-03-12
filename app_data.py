@@ -1325,165 +1325,237 @@ elif menu_pilihan == "Rekap SIPD":
                 df_sd_dash = df_dash[df_dash['tahapan'] == tahap_akhir].copy()
                 df_sd_dash['nama_sumber_dana'] = df_sd_dash['nama_sumber_dana'].replace("", "TIDAK DIKETAHUI")
                 sd_pie = df_sd_dash.groupby('nama_sumber_dana')['pagu'].sum().reset_index()
-                sd_pie = sd_pie[sd_pie['pagu
-                                st.error("❌ Tidak ada sheet yang ditemukan di dalam file tersebut.")
-                        except Exception as e:
-                            st.error(f"❌ Gagal membaca Google Sheet. Pastikan link tidak dikunci. Error: {e}")
-                    else:
-                        st.warning("⚠️ Link tidak valid. Coba paste ulang link Google Sheet yang benar.")
-
-            if st.button("📊 PROSES REKAP BIDANG", type="primary", use_container_width=True, key="btn_tab5"):
-                
-                if sumber_data_bidang == "📂 Upload File Lokal (Excel/CSV)" and file_mapping_bidang is None:
-                    st.error("⚠️ Mohon upload file Excel/CSV terlebih dahulu!")
-                elif sumber_data_bidang == "🌐 Link Google Sheet (Otomatis Baca Sheet)" and link_bidang_input == "":
-                    st.error("⚠️ Mohon paste Link Google Sheet terlebih dahulu!")
-                elif sumber_data_bidang == "🌐 Link Google Sheet (Otomatis Baca Sheet)" and df_map_gsheet.empty:
-                    st.error("⚠️ Menunggu data dari Google Sheet. Silakan pilih Tahapan (Sheet) yang benar.")
+                sd_pie = sd_pie[sd_pie['pagu'] > 0].sort_values('pagu', ascending=False)
+                if not sd_pie.empty:
+                    fig_pie = px.pie(
+                        sd_pie, names="nama_sumber_dana", values="pagu",
+                        color_discrete_sequence=px.colors.sequential.PuBu,
+                        hole=0.35,
+                    )
+                    fig_pie.update_traces(
+                        textinfo='percent+label', textposition='outside', textfont_size=12,
+                        pull=[0.05]*len(sd_pie),
+                        hovertemplate='<b>%{label}</b><br>Pagu: Rp %{value:,.0f}<extra></extra>'
+                    )
+                    fig_pie.update_layout(
+                        showlegend=False,
+                        height=420,
+                        margin=dict(t=30, b=30, l=10, r=10),
+                        font=dict(family="Roboto", size=14),
+                        plot_bgcolor='#f7f7f7',
+                        transition={'duration': 500},
+                    )
+                    st.plotly_chart(fig_pie, use_container_width=True, config={"displayModeBar": True, "scrollZoom": True})
                 else:
-                    with st.spinner("Menyatukan data SIPD dengan pemetaan PPTK/Bidang..."):
-                        try:
-                            if sumber_data_bidang == "📂 Upload File Lokal (Excel/CSV)":
-                                if file_mapping_bidang.name.endswith('.csv'):
-                                    df_map = pd.read_csv(file_mapping_bidang)
-                                else:
-                                    df_map = pd.read_excel(file_mapping_bidang)
-                            else:
-                                df_map = df_map_gsheet.copy()
-
-                            df_map.columns = df_map.columns.astype(str).str.lower().str.strip()
-                            
-                            if 'code' in df_map.columns:
-                                df_map.rename(columns={'code': 'kode sub'}, inplace=True)
-                            if 'bidang' in df_map.columns:
-                                df_map.rename(columns={'bidang': 'penanggung jawab'}, inplace=True)
-                            
-                            if 'kode sub' not in df_map.columns or 'penanggung jawab' not in df_map.columns:
-                                st.error(f"❌ Ralat! File pemetaan harus memiliki kolom 'kode sub' dan 'penanggung jawab'. Kolom yang terdeteksi: {list(df_map.columns)}")
-                            else:
-                                df_map = df_map[['kode sub', 'penanggung jawab']].rename(columns={'kode sub': 'kode_sub_kegiatan'})
-                                df_map['kode_sub_kegiatan'] = df_map['kode_sub_kegiatan'].astype(str).str.strip()
-                                df_map['penanggung jawab'] = df_map['penanggung jawab'].fillna("TIDAK ADA DATA")
-                                
-                                df_map = df_map.drop_duplicates(subset=['kode_sub_kegiatan'])
-                                
-                                df_sipd_filter = df_proses[df_proses['tahapan'].isin([tahap_awal, tahap_akhir])].copy()
-                                
-                                df_gabung = pd.merge(df_sipd_filter, df_map, on='kode_sub_kegiatan', how='left')
-                                
-                                df_gabung['penanggung jawab'] = df_gabung['penanggung jawab'].fillna("TIDAK DIPETAKAN")
-                                
-                                rekap_bidang = df_gabung.groupby(['penanggung jawab', 'tahapan'])['pagu'].sum().reset_index()
-                                
-                                pivot_bidang = rekap_bidang.pivot_table(
-                                    index='penanggung jawab', 
-                                    columns='tahapan', 
-                                    values='pagu', 
-                                    aggfunc='sum', 
-                                    fill_value=0
-                                ).reset_index()
-                                
-                                for t in [tahap_awal, tahap_akhir]:
-                                    if t not in pivot_bidang.columns:
-                                        pivot_bidang[t] = 0
-                                        
-                                pivot_bidang['Selisih'] = pivot_bidang[tahap_akhir] - pivot_bidang[tahap_awal]
-                                
-                                pivot_bidang.rename(columns={
-                                    'penanggung jawab': 'Penanggung Jawab / Bidang',
-                                    tahap_awal: f'Pagu {tahap_awal}',
-                                    tahap_akhir: f'Pagu {tahap_akhir}'
-                                }, inplace=True)
-                                
-                                baris_total = pd.DataFrame([{
-                                    'Penanggung Jawab / Bidang': 'TOTAL KESELURUHAN',
-                                    f'Pagu {tahap_awal}': pivot_bidang[f'Pagu {tahap_awal}'].sum(),
-                                    f'Pagu {tahap_akhir}': pivot_bidang[f'Pagu {tahap_akhir}'].sum(),
-                                    'Selisih': pivot_bidang['Selisih'].sum()
-                                }])
-                                pivot_bidang = pd.concat([pivot_bidang, baris_total], ignore_index=True)
-                                
-                                st.success("✅ Rekapitulasi Per Bidang Selesai!")
-                                st.dataframe(
-                                    pivot_bidang, 
-                                    use_container_width=True,
-                                    column_config={
-                                        f'Pagu {tahap_awal}': st.column_config.NumberColumn(format="Rp %.0f"),
-                                        f'Pagu {tahap_akhir}': st.column_config.NumberColumn(format="Rp %.0f"),
-                                        "Selisih": st.column_config.NumberColumn(format="Rp %.0f")
-                                    }
-                                )
-                                
-                                output_bidang = io.BytesIO()
-                                with pd.ExcelWriter(output_bidang, engine='openpyxl') as writer:
-                                    pivot_bidang.to_excel(writer, index=False, sheet_name='Rekap_Bidang_Internal')
-                                output_bidang.seek(0)
-                                
-                                st.download_button(
-                                    label="📥 Download Excel (Rekap Bidang)", 
-                                    data=output_bidang, 
-                                    file_name=f"Rekap_Bidang_Internal_{nama_file_export}_{tahun_pilihan}.xlsx", 
-                                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", 
-                                    type="primary",
-                                    key="dl_tab5_excel"
-                                )
-                                
-                        except Exception as e:
-                            st.error(f"❌ Terjadi kesalahan saat memproses data: {e}")
-
-        # -------------------------------------------------------------------
-        # TAB 6: REKAP KODE REKENING (dulu NPD, model download = tabel streamlit)
-        # -------------------------------------------------------------------
-        with tab6:
-            st.markdown("### 📦 Rekap Kode Rekening (dulu NPD)")
-            # Filter SKPD
-            list_skpd_npd = sorted([s for s in df_proses['nama_skpd'].unique() if s != ""])
-            list_skpd_npd.insert(0, "SEMUA SKPD")
-            skpd_npd = st.multiselect("🏢 Pilih SKPD:", list_skpd_npd, default=["SEMUA SKPD"])
-            # Filter Sub Kegiatan
-            if "SEMUA SKPD" in skpd_npd:
-                df_npd = df_proses.copy()
-            else:
-                df_npd = df_proses[df_proses['nama_skpd'].isin(skpd_npd)].copy()
-            list_sub_npd = sorted([s for s in df_npd['nama_sub_kegiatan'].unique() if s != ""])
-            sub_npd = st.multiselect("🔍 Pilih Sub Kegiatan:", list_sub_npd, default=list_sub_npd)
-            if sub_npd:
-                df_npd = df_npd[df_npd['nama_sub_kegiatan'].isin(sub_npd)]
-            if df_npd.empty:
-                st.warning("Tidak ada data untuk pilihan filter ini.")
-            else:
-                df_npd_rek = df_npd[df_npd['kode_rekening'] != ""].copy()
-                df_npd_rek['Major Rek'] = df_npd_rek['kode_rekening'].str.slice(0, 5)
-                rekap_npd = df_npd_rek.groupby(['Major Rek', 'nama_rekening', 'nama_skpd', 'nama_sub_kegiatan', 'tahapan'])['pagu'].sum().reset_index()
-                pivot_npd = rekap_npd.pivot_table(
-                    index=['Major Rek', 'nama_rekening', 'nama_skpd', 'nama_sub_kegiatan'],
-                    columns='tahapan',
-                    values='pagu',
-                    aggfunc='sum',
-                    fill_value=0
-                ).reset_index()
+                    st.info("Tidak ada data sumber dana untuk ditampilkan.")
+            # GRAFIK 3: Bar Chart Pagu per SKPD
+            st.markdown(f"##### 🏢 Pagu per SKPD ({tahap_akhir})")
+            df_skpd_dash = df_dash[df_dash['tahapan'] == tahap_akhir].groupby(['kode_skpd', 'nama_skpd'])['pagu'].sum().reset_index()
+            df_skpd_dash = df_skpd_dash.sort_values('pagu', ascending=True)
+            if not df_skpd_dash.empty:
+                df_skpd_dash['label_skpd'] = df_skpd_dash['nama_skpd'].str[:40]
+                fig_skpd = px.bar(
+                    df_skpd_dash, x="pagu", y="label_skpd",
+                    orientation='h',
+                    text_auto=True,
+                    color_discrete_sequence=["#0083B8"],
+                )
+                fig_skpd.update_traces(
+                    texttemplate='%{x:,.0f}', textposition='outside', textfont_size=11,
+                    marker_line_width=1.5, marker_line_color='white',
+                    hovertemplate='<b>%{y}</b><br>Total Pagu: Rp %{x:,.0f}<extra></extra>'
+                )
+                fig_skpd.update_layout(
+                    xaxis_title="Total Pagu (Rp)",
+                    yaxis_title="",
+                    height=max(320, len(df_skpd_dash) * 38),
+                    margin=dict(t=30, b=30, l=10, r=10),
+                    plot_bgcolor='#f7f7f7',
+                    font=dict(family="Roboto", size=13),
+                    transition={'duration': 500},
+                )
+                fig_skpd.update_xaxes(gridcolor='#e0e0e0', zeroline=False)
+                fig_skpd.update_yaxes(gridcolor='#e0e0e0', zeroline=False)
+                st.plotly_chart(fig_skpd, use_container_width=True, config={"displayModeBar": True, "scrollZoom": True})
+# ...existing code...
+            # GRAFIK 1: Bar Chart Perbandingan Pagu per Tahapan
+            with col_chart1:
+                st.markdown("##### 📊 Perbandingan Total Pagu per Tahapan")
+                data_bar = []
                 for t in list_tahapan:
-                    if t not in pivot_npd.columns:
-                        pivot_npd[t] = 0
-                pivot_npd['Selisih'] = pivot_npd[tahap_akhir] - pivot_npd[tahap_awal]
-                urut_npd = ['Major Rek', 'nama_rekening', 'nama_skpd', 'nama_sub_kegiatan'] + list_tahapan + ['Selisih']
-                for col in urut_npd:
-                    if col not in pivot_npd.columns:
-                        pivot_npd[col] = 0
-                pivot_npd = pivot_npd[urut_npd]
-                st.dataframe(
-                    pivot_npd,
-                    use_container_width=True,
-                    column_config={t: st.column_config.NumberColumn(format="Rp %.0f") for t in list_tahapan}
+                    total = metrik_per_tahapan.get(t, 0)
+                    data_bar.append({"Tahapan": t, "Total Pagu": total})
+                df_bar = pd.DataFrame(data_bar)
+                fig_bar = px.bar(
+                    df_bar, x="Tahapan", y="Total Pagu",
+                    color="Tahapan",
+                    text_auto=True,
+                    color_discrete_sequence=px.colors.sequential.Blues,
                 )
-                # Download sesuai tampilan tabel
-                output_npd = io.BytesIO()
-                with pd.ExcelWriter(output_npd, engine='openpyxl') as writer:
-                    pivot_npd.to_excel(writer, index=False, sheet_name='Rekap_Kode_Rekening')
-                output_npd.seek(0)
-                st.download_button(
-                    label="📥 Download Rekap Kode Rekening (Excel)",
-                    data=output_npd,
-                    file_name=f"Rekap_Kode_Rekening_{tahun_pilihan}.xlsx",
-                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                fig_bar.update_traces(
+                    texttemplate='%{y:,.0f}', textposition='outside', textfont_size=12,
+                    marker_line_width=1.5, marker_line_color='white',
+                    hovertemplate='<b>%{x}</b><br>Total Pagu: Rp %{y:,.0f}<extra></extra>'
                 )
+                fig_bar.update_layout(
+                    showlegend=False,
+                    yaxis_title="Total Pagu (Rp)",
+                    xaxis_title="",
+                    height=420,
+                    margin=dict(t=30, b=30, l=10, r=10),
+                    plot_bgcolor='#f7f7f7',
+                    font=dict(family="Roboto", size=14),
+                    transition={'duration': 500},
+                )
+                fig_bar.update_yaxes(gridcolor='#e0e0e0', zeroline=False)
+                fig_bar.update_xaxes(gridcolor='#e0e0e0', zeroline=False)
+                st.plotly_chart(fig_bar, use_container_width=True, config={"displayModeBar": True, "scrollZoom": True})
+            # GRAFIK 2: Pie Chart Komposisi Sumber Dana
+            with col_chart2:
+                st.markdown(f"##### 🥧 Komposisi Sumber Dana ({tahap_akhir})")
+                df_sd_dash = df_dash[df_dash['tahapan'] == tahap_akhir].copy()
+                df_sd_dash['nama_sumber_dana'] = df_sd_dash['nama_sumber_dana'].replace("", "TIDAK DIKETAHUI")
+                sd_pie = df_sd_dash.groupby('nama_sumber_dana')['pagu'].sum().reset_index()
+                sd_pie = sd_pie[sd_pie['pagu'] > 0].sort_values('pagu', ascending=False)
+                if not sd_pie.empty:
+                    fig_pie = px.pie(
+                        sd_pie, names="nama_sumber_dana", values="pagu",
+                        color_discrete_sequence=px.colors.sequential.PuBu,
+                        hole=0.35,
+                    )
+                    fig_pie.update_traces(
+                        textinfo='percent+label', textposition='outside', textfont_size=12,
+                        pull=[0.05]*len(sd_pie),
+                        hovertemplate='<b>%{label}</b><br>Pagu: Rp %{value:,.0f}<extra></extra>'
+                    )
+                    fig_pie.update_layout(
+                        showlegend=False,
+                        height=420,
+                        margin=dict(t=30, b=30, l=10, r=10),
+                        font=dict(family="Roboto", size=14),
+                        plot_bgcolor='#f7f7f7',
+                        transition={'duration': 500},
+                    )
+                    st.plotly_chart(fig_pie, use_container_width=True, config={"displayModeBar": True, "scrollZoom": True})
+                else:
+                    st.info("Tidak ada data sumber dana untuk ditampilkan.")
+            # GRAFIK 3: Bar Chart Pagu per SKPD
+            st.markdown(f"##### 🏢 Pagu per SKPD ({tahap_akhir})")
+            df_skpd_dash = df_dash[df_dash['tahapan'] == tahap_akhir].groupby(['kode_skpd', 'nama_skpd'])['pagu'].sum().reset_index()
+            df_skpd_dash = df_skpd_dash.sort_values('pagu', ascending=True)
+            if not df_skpd_dash.empty:
+                df_skpd_dash['label_skpd'] = df_skpd_dash['nama_skpd'].str[:40]
+                fig_skpd = px.bar(
+                    df_skpd_dash, x="pagu", y="label_skpd",
+                    orientation='h',
+                    text_auto=True,
+                    color_discrete_sequence=["#0083B8"],
+                )
+                fig_skpd.update_traces(
+                    texttemplate='%{x:,.0f}', textposition='outside', textfont_size=11,
+                    marker_line_width=1.5, marker_line_color='white',
+                    hovertemplate='<b>%{y}</b><br>Total Pagu: Rp %{x:,.0f}<extra></extra>'
+                )
+                fig_skpd.update_layout(
+                    xaxis_title="Total Pagu (Rp)",
+                    yaxis_title="",
+                    height=max(320, len(df_skpd_dash) * 38),
+                    margin=dict(t=30, b=30, l=10, r=10),
+                    plot_bgcolor='#f7f7f7',
+                    font=dict(family="Roboto", size=13),
+                    transition={'duration': 500},
+                )
+                fig_skpd.update_xaxes(gridcolor='#e0e0e0', zeroline=False)
+                fig_skpd.update_yaxes(gridcolor='#e0e0e0', zeroline=False)
+                st.plotly_chart(fig_skpd, use_container_width=True, config={"displayModeBar": True, "scrollZoom": True})
+# ...existing code...
+            # GRAFIK 1: Bar Chart Perbandingan Pagu per Tahapan
+            with col_chart1:
+                st.markdown("##### 📊 Perbandingan Total Pagu per Tahapan")
+                data_bar = []
+                for t in list_tahapan:
+                    total = metrik_per_tahapan.get(t, 0)
+                    data_bar.append({"Tahapan": t, "Total Pagu": total})
+                df_bar = pd.DataFrame(data_bar)
+                fig_bar = px.bar(
+                    df_bar, x="Tahapan", y="Total Pagu",
+                    color="Tahapan",
+                    text_auto=True,
+                    color_discrete_sequence=px.colors.sequential.Blues,
+                )
+                fig_bar.update_traces(
+                    texttemplate='%{y:,.0f}', textposition='outside', textfont_size=12,
+                    marker_line_width=1.5, marker_line_color='white',
+                    hovertemplate='<b>%{x}</b><br>Total Pagu: Rp %{y:,.0f}<extra></extra>'
+                )
+                fig_bar.update_layout(
+                    showlegend=False,
+                    yaxis_title="Total Pagu (Rp)",
+                    xaxis_title="",
+                    height=420,
+                    margin=dict(t=30, b=30, l=10, r=10),
+                    plot_bgcolor='#f7f7f7',
+                    font=dict(family="Roboto", size=14),
+                    transition={'duration': 500},
+                )
+                fig_bar.update_yaxes(gridcolor='#e0e0e0', zeroline=False)
+                fig_bar.update_xaxes(gridcolor='#e0e0e0', zeroline=False)
+                st.plotly_chart(fig_bar, use_container_width=True, config={"displayModeBar": True, "scrollZoom": True})
+            # GRAFIK 2: Pie Chart Komposisi Sumber Dana
+            with col_chart2:
+                st.markdown(f"##### 🥧 Komposisi Sumber Dana ({tahap_akhir})")
+                df_sd_dash = df_dash[df_dash['tahapan'] == tahap_akhir].copy()
+                df_sd_dash['nama_sumber_dana'] = df_sd_dash['nama_sumber_dana'].replace("", "TIDAK DIKETAHUI")
+                sd_pie = df_sd_dash.groupby('nama_sumber_dana')['pagu'].sum().reset_index()
+                sd_pie = sd_pie[sd_pie['pagu'] > 0].sort_values('pagu', ascending=False)
+                if not sd_pie.empty:
+                    fig_pie = px.pie(
+                        sd_pie, names="nama_sumber_dana", values="pagu",
+                        color_discrete_sequence=px.colors.sequential.PuBu,
+                        hole=0.35,
+                    )
+                    fig_pie.update_traces(
+                        textinfo='percent+label', textposition='outside', textfont_size=12,
+                        pull=[0.05]*len(sd_pie),
+                        hovertemplate='<b>%{label}</b><br>Pagu: Rp %{value:,.0f}<extra></extra>'
+                    )
+                    fig_pie.update_layout(
+                        showlegend=False,
+                        height=420,
+                        margin=dict(t=30, b=30, l=10, r=10),
+                        font=dict(family="Roboto", size=14),
+                        plot_bgcolor='#f7f7f7',
+                        transition={'duration': 500},
+                    )
+                    st.plotly_chart(fig_pie, use_container_width=True, config={"displayModeBar": True, "scrollZoom": True})
+                else:
+                    st.info("Tidak ada data sumber dana untuk ditampilkan.")
+            # GRAFIK 3: Bar Chart Pagu per SKPD
+            st.markdown(f"##### 🏢 Pagu per SKPD ({tahap_akhir})")
+            df_skpd_dash = df_dash[df_dash['tahapan'] == tahap_akhir].groupby(['kode_skpd', 'nama_skpd'])['pagu'].sum().reset_index()
+            df_skpd_dash = df_skpd_dash.sort_values('pagu', ascending=True)
+            if not df_skpd_dash.empty:
+                df_skpd_dash['label_skpd'] = df_skpd_dash['nama_skpd'].str[:40]
+                fig_skpd = px.bar(
+                    df_skpd_dash, x="pagu", y="label_skpd",
+                    orientation='h',
+                    text_auto=True,
+                    color_discrete_sequence=["#0083B8"],
+                )
+                fig_skpd.update_traces(
+                    texttemplate='%{x:,.0f}', textposition='outside', textfont_size=11,
+                    marker_line_width=1.5, marker_line_color='white',
+                    hovertemplate='<b>%{y}</b><br>Total Pagu: Rp %{x:,.0f}<extra></extra>'
+                )
+                fig_skpd.update_layout(
+                    xaxis_title="Total Pagu (Rp)",
+                    yaxis_title="",
+                    height=max(320, len(df_skpd_dash) * 38),
+                    margin=dict(t=30, b=30, l=10, r=10),
+                    plot_bgcolor='#f7f7f7',
+                    font=dict(family="Roboto", size=13),
+                    transition={'duration': 500},
+                )
+                fig_skpd.update_xaxes(gridcolor='#e0e0e0', zeroline=False)
+                fig_skpd.update_yaxes(gridcolor='#e0e0e0', zeroline=False)
+                st.plotly_chart(fig_skpd, use_container_width=True, config={"displayModeBar": True, "scrollZoom": True})
