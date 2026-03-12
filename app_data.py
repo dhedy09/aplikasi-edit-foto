@@ -11,6 +11,7 @@ from supabase import create_client, Client
 from collections import defaultdict
 import plotly.express as px
 import plotly.graph_objects as go
+import importlib
 
 # ==========================================
 # 1. PENGATURAN HALAMAN
@@ -774,13 +775,19 @@ elif menu_pilihan == "Rekap SIPD":
                 fig_bar.update_xaxes(gridcolor='#e0e0e0', zeroline=False)
                 st.plotly_chart(fig_bar, use_container_width=True, config={"displayModeBar": True, "scrollZoom": True})
                 # Tombol download PNG
-                png_bar = fig_bar.to_image(format="png", scale=3)
-                st.download_button(
-                    label="📥 Download Chart (PNG)",
-                    data=png_bar,
-                    file_name="BarChart_PaguTahapan.png",
-                    mime="image/png"
-                )
+                if importlib.util.find_spec("kaleido"):
+                    try:
+                        png_bar = fig_bar.to_image(format="png", scale=3)
+                        st.download_button(
+                            label="📥 Download Chart (PNG)",
+                            data=png_bar,
+                            file_name="BarChart_PaguTahapan.png",
+                            mime="image/png"
+                        )
+                    except Exception as e:
+                        st.warning(f"Gagal export PNG: {e}")
+                else:
+                    st.info("Untuk fitur download chart PNG, install dulu: pip install kaleido")
 
             # GRAFIK 2: Pie Chart Komposisi Sumber Dana
             with col_chart2:
@@ -810,13 +817,19 @@ elif menu_pilihan == "Rekap SIPD":
                     )
                     st.plotly_chart(fig_pie, use_container_width=True, config={"displayModeBar": True, "scrollZoom": True})
                     # Tombol download PNG
-                    png_pie = fig_pie.to_image(format="png", scale=3)
-                    st.download_button(
-                        label="📥 Download Chart (PNG)",
-                        data=png_pie,
-                        file_name="PieChart_SumberDana.png",
-                        mime="image/png"
-                    )
+                    if importlib.util.find_spec("kaleido"):
+                        try:
+                            png_pie = fig_pie.to_image(format="png", scale=3)
+                            st.download_button(
+                                label="📥 Download Chart (PNG)",
+                                data=png_pie,
+                                file_name="PieChart_SumberDana.png",
+                                mime="image/png"
+                            )
+                        except Exception as e:
+                            st.warning(f"Gagal export PNG: {e}")
+                    else:
+                        st.info("Untuk fitur download chart PNG, install dulu: pip install kaleido")
                 else:
                     st.info("Tidak ada data sumber dana untuk ditampilkan.")
 
@@ -852,13 +865,19 @@ elif menu_pilihan == "Rekap SIPD":
                 fig_skpd.update_yaxes(gridcolor='#e0e0e0', zeroline=False)
                 st.plotly_chart(fig_skpd, use_container_width=True, config={"displayModeBar": True, "scrollZoom": True})
                 # Tombol download PNG
-                png_skpd = fig_skpd.to_image(format="png", scale=3)
-                st.download_button(
-                    label="📥 Download Chart (PNG)",
-                    data=png_skpd,
-                    file_name="BarChart_PaguSKPD.png",
-                    mime="image/png"
-                )
+                if importlib.util.find_spec("kaleido"):
+                    try:
+                        png_skpd = fig_skpd.to_image(format="png", scale=3)
+                        st.download_button(
+                            label="📥 Download Chart (PNG)",
+                            data=png_skpd,
+                            file_name="BarChart_PaguSKPD.png",
+                            mime="image/png"
+                        )
+                    except Exception as e:
+                        st.warning(f"Gagal export PNG: {e}")
+                else:
+                    st.info("Untuk fitur download chart PNG, install dulu: pip install kaleido")
             st.markdown("---")
             
             # ---------- TABEL: TOP 10 SELISIH TERBESAR ----------
