@@ -791,7 +791,7 @@ elif menu_pilihan == "Rekap SIPD":
                         mime="image/png"
                     )
                 except ImportError:
-                    # st.info("Untuk fitur download chart PNG, install dulu: pip install kaleido")
+                    st.info("Untuk fitur download chart PNG, install dulu: pip install kaleido")
                 except Exception as e:
                     st.warning(f"Gagal export PNG: {e}")
 
@@ -1552,4 +1552,5 @@ elif menu_pilihan == "Rekap SIPD":
                     file_name=f"Rekap_Kode_Rekening_{tahun_pilihan}.xlsx",
                     mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
                 )
+
 
