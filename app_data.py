@@ -754,7 +754,7 @@ elif menu_pilihan == "Rekap SIPD":
                     df_bar, x="Tahapan", y="Total Pagu",
                     color="Tahapan",
                     text_auto=True,
-                    color_discrete_sequence=px.colors.sequential.Blues,
+                    color_discrete_sequence=px.colors.sequential.PuBu,
                 )
                 fig_bar.update_traces(
                     texttemplate='%{y:,.0f}', textposition='outside', textfont_size=14,
@@ -768,26 +768,26 @@ elif menu_pilihan == "Rekap SIPD":
                     height=420,
                     margin=dict(t=30, b=30, l=10, r=10),
                     plot_bgcolor='#f7f7f7',
-                    font=dict(family="Roboto", size=16, color="#222", weight="bold"),
+                    font=dict(family="Roboto", size=16, color="#222"),
                     transition={'duration': 500},
                 )
                 fig_bar.update_yaxes(gridcolor='#e0e0e0', zeroline=False)
                 fig_bar.update_xaxes(gridcolor='#e0e0e0', zeroline=False)
                 st.plotly_chart(fig_bar, use_container_width=True, config={"displayModeBar": True, "scrollZoom": True})
                 # Tombol download PNG
-                if importlib.util.find_spec("kaleido"):
-                    try:
-                        png_bar = fig_bar.to_image(format="png", scale=3)
-                        st.download_button(
-                            label="📥 Download Chart (PNG)",
-                            data=png_bar,
-                            file_name="BarChart_PaguTahapan.png",
-                            mime="image/png"
-                        )
-                    except Exception as e:
-                        st.warning(f"Gagal export PNG: {e}")
-                else:
+                try:
+                    import kaleido
+                    png_bar = fig_bar.to_image(format="png", scale=3)
+                    st.download_button(
+                        label="📥 Download Chart (PNG)",
+                        data=png_bar,
+                        file_name="BarChart_PaguTahapan.png",
+                        mime="image/png"
+                    )
+                except ImportError:
                     st.info("Untuk fitur download chart PNG, install dulu: pip install kaleido")
+                except Exception as e:
+                    st.warning(f"Gagal export PNG: {e}")
 
             # GRAFIK 2: Pie Chart Komposisi Sumber Dana
             with col_chart2:
@@ -811,25 +811,25 @@ elif menu_pilihan == "Rekap SIPD":
                         showlegend=False,
                         height=420,
                         margin=dict(t=30, b=30, l=10, r=10),
-                        font=dict(family="Roboto", size=16, color="#222", weight="bold"),
+                        font=dict(family="Roboto", size=16, color="#222"),
                         plot_bgcolor='#f7f7f7',
                         transition={'duration': 500},
                     )
                     st.plotly_chart(fig_pie, use_container_width=True, config={"displayModeBar": True, "scrollZoom": True})
                     # Tombol download PNG
-                    if importlib.util.find_spec("kaleido"):
-                        try:
-                            png_pie = fig_pie.to_image(format="png", scale=3)
-                            st.download_button(
-                                label="📥 Download Chart (PNG)",
-                                data=png_pie,
-                                file_name="PieChart_SumberDana.png",
-                                mime="image/png"
-                            )
-                        except Exception as e:
-                            st.warning(f"Gagal export PNG: {e}")
-                    else:
+                    try:
+                        import kaleido
+                        png_pie = fig_pie.to_image(format="png", scale=3)
+                        st.download_button(
+                            label="📥 Download Chart (PNG)",
+                            data=png_pie,
+                            file_name="PieChart_SumberDana.png",
+                            mime="image/png"
+                        )
+                    except ImportError:
                         st.info("Untuk fitur download chart PNG, install dulu: pip install kaleido")
+                    except Exception as e:
+                        st.warning(f"Gagal export PNG: {e}")
                 else:
                     st.info("Tidak ada data sumber dana untuk ditampilkan.")
 
@@ -845,7 +845,7 @@ elif menu_pilihan == "Rekap SIPD":
                     df_skpd_dash, x="pagu", y="label_skpd",
                     orientation='h',
                     text_auto=True,
-                    color_discrete_sequence=["#0083B8"],
+                    color_discrete_sequence=["#6EC6FF"],
                 )
                 fig_skpd.update_traces(
                     texttemplate='%{x:,.0f}', textposition='outside', textfont_size=13,
@@ -858,26 +858,26 @@ elif menu_pilihan == "Rekap SIPD":
                     height=max(320, len(df_skpd_dash) * 38),
                     margin=dict(t=30, b=30, l=10, r=10),
                     plot_bgcolor='#f7f7f7',
-                    font=dict(family="Roboto", size=15, color="#222", weight="bold"),
+                    font=dict(family="Roboto", size=15, color="#222"),
                     transition={'duration': 500},
                 )
                 fig_skpd.update_xaxes(gridcolor='#e0e0e0', zeroline=False)
                 fig_skpd.update_yaxes(gridcolor='#e0e0e0', zeroline=False)
                 st.plotly_chart(fig_skpd, use_container_width=True, config={"displayModeBar": True, "scrollZoom": True})
                 # Tombol download PNG
-                if importlib.util.find_spec("kaleido"):
-                    try:
-                        png_skpd = fig_skpd.to_image(format="png", scale=3)
-                        st.download_button(
-                            label="📥 Download Chart (PNG)",
-                            data=png_skpd,
-                            file_name="BarChart_PaguSKPD.png",
-                            mime="image/png"
-                        )
-                    except Exception as e:
-                        st.warning(f"Gagal export PNG: {e}")
-                else:
+                try:
+                    import kaleido
+                    png_skpd = fig_skpd.to_image(format="png", scale=3)
+                    st.download_button(
+                        label="📥 Download Chart (PNG)",
+                        data=png_skpd,
+                        file_name="BarChart_PaguSKPD.png",
+                        mime="image/png"
+                    )
+                except ImportError:
                     st.info("Untuk fitur download chart PNG, install dulu: pip install kaleido")
+                except Exception as e:
+                    st.warning(f"Gagal export PNG: {e}")
             st.markdown("---")
             
             # ---------- TABEL: TOP 10 SELISIH TERBESAR ----------
