@@ -1,3 +1,4 @@
+
 import io
 import re
 import time
@@ -51,6 +52,22 @@ def format_rupiah(x):
     except Exception:
         return "Rp 0"
 
+def format_rupiah_singkat(x):
+    try:
+        x = float(x)
+    except Exception:
+        return "Rp 0"
+    nilai_abs = abs(x)
+    if nilai_abs >= 1_000_000_000_000:
+        return f"Rp {x/1_000_000_000_000:.1f} T".replace('.', ',')
+    if nilai_abs >= 1_000_000_000:
+        return f"Rp {x/1_000_000_000:.1f} M".replace('.', ',')
+    if nilai_abs >= 1_000_000:
+        return f"Rp {x/1_000_000:.1f} Jt".replace('.', ',')
+    if nilai_abs >= 1_000:
+        return f"Rp {x/1_000:.1f} Rb".replace('.', ',')
+    return format_rupiah(x)
+
 def safe_stem(text):
     return re.sub(r"[^a-zA-Z0-9_-]+", "_", str(text)).strip("_").lower()
 
@@ -62,25 +79,28 @@ def inject_custom_css():
     st.markdown(
         """
         <style>
+        #MainMenu {visibility: hidden;}
+        footer {visibility: hidden;}
+
         html, body, [class*="css"] {
             font-family: Inter, "Segoe UI", Arial, sans-serif;
         }
 
         [data-testid="stAppViewContainer"]{
             background:
-                radial-gradient(circle at top left, rgba(37,99,235,0.10), transparent 26%),
-                radial-gradient(circle at top right, rgba(14,165,233,0.10), transparent 22%),
-                linear-gradient(180deg, #f8fbff 0%, #f3f7fc 100%);
+                radial-gradient(circle at top left, rgba(37,99,235,0.08), transparent 24%),
+                radial-gradient(circle at top right, rgba(14,165,233,0.08), transparent 22%),
+                linear-gradient(180deg, #f6f9ff 0%, #eff5fb 100%);
         }
 
         [data-testid="stHeader"]{
             background: rgba(255,255,255,0.70);
             backdrop-filter: blur(10px);
-            border-bottom: 1px solid rgba(148,163,184,0.16);
+            border-bottom: 1px solid rgba(148,163,184,0.14);
         }
 
         [data-testid="stSidebar"]{
-            background: linear-gradient(180deg, #0f172a 0%, #111827 100%);
+            background: linear-gradient(180deg, #0b1220 0%, #0f172a 52%, #111827 100%);
             border-right: 1px solid rgba(255,255,255,0.05);
         }
 
@@ -89,17 +109,115 @@ def inject_custom_css():
         }
 
         .block-container{
-            max-width: 1450px;
-            padding-top: 1.15rem;
+            max-width: 1480px;
+            padding-top: 1.1rem;
             padding-bottom: 2rem;
         }
 
+        .sidebar-brand{
+            display:flex;
+            align-items:center;
+            gap:12px;
+            padding:16px 14px;
+            border-radius:24px;
+            background: linear-gradient(135deg, rgba(37,99,235,0.28), rgba(14,165,233,0.22));
+            border: 1px solid rgba(125,211,252,0.18);
+            box-shadow: 0 14px 36px rgba(2,6,23,0.30);
+            margin-bottom: 12px;
+        }
+
+        .brand-mark{
+            width:46px;
+            height:46px;
+            border-radius:15px;
+            display:flex;
+            align-items:center;
+            justify-content:center;
+            font-size:1.25rem;
+            font-weight:800;
+            background: rgba(255,255,255,0.16);
+            color:white;
+        }
+
+        .brand-title{
+            font-size:1.08rem;
+            font-weight:800;
+            color:white;
+            line-height:1.1;
+        }
+
+        .brand-subtitle{
+            font-size:.83rem;
+            color: rgba(226,232,240,0.88);
+            margin-top:2px;
+        }
+
+        .sidebar-mini-card{
+            background: rgba(255,255,255,0.06);
+            border: 1px solid rgba(148,163,184,0.12);
+            border-radius: 20px;
+            padding: 14px 14px;
+            margin-bottom: 14px;
+            box-shadow: inset 0 1px 0 rgba(255,255,255,0.04);
+        }
+
+        .sidebar-mini-label{
+            font-size: .72rem;
+            letter-spacing: .12em;
+            text-transform: uppercase;
+            color: rgba(191,219,254,0.74);
+            margin-bottom: 6px;
+            font-weight: 700;
+        }
+
+        .sidebar-mini-title{
+            font-size: .96rem;
+            font-weight: 700;
+            color: #ffffff;
+            margin-bottom: 4px;
+        }
+
+        .sidebar-mini-subtitle{
+            font-size: .82rem;
+            color: rgba(226,232,240,0.74);
+            line-height: 1.45;
+        }
+
+        .sidebar-section-title{
+            font-size: .72rem;
+            letter-spacing: .14em;
+            text-transform: uppercase;
+            color: rgba(148,163,184,0.90);
+            font-weight: 800;
+            margin: .7rem 0 .3rem 0;
+        }
+
+        .sidebar-footer-box{
+            margin-top: 1rem;
+            padding: 13px 14px;
+            border-radius: 18px;
+            background: rgba(255,255,255,0.04);
+            border: 1px solid rgba(148,163,184,0.12);
+        }
+
+        .sidebar-footer-title{
+            font-size: .88rem;
+            font-weight: 700;
+            color: white;
+        }
+
+        .sidebar-footer-subtitle{
+            font-size: .78rem;
+            color: rgba(226,232,240,0.74);
+            margin-top: 3px;
+        }
+
         div[data-testid="stMetric"]{
-            background: rgba(255,255,255,0.92);
+            background: rgba(255,255,255,0.94);
             border: 1px solid rgba(148,163,184,0.16);
             border-radius: 22px;
             padding: 16px 18px;
-            box-shadow: 0 10px 28px rgba(15,23,42,0.06);
+            box-shadow: 0 12px 30px rgba(15,23,42,0.06);
         }
 
         div[data-testid="stMetricLabel"] p{
@@ -107,17 +225,22 @@ def inject_custom_css():
         }
 
         div[data-testid="stPlotlyChart"]{
-            background: rgba(255,255,255,0.95);
-            border: 1px solid rgba(148,163,184,0.16);
+            background: rgba(255,255,255,0.96);
+            border: 1px solid rgba(148,163,184,0.15);
             border-radius: 24px;
-            padding: 10px 12px 8px 12px;
-            box-shadow: 0 12px 34px rgba(15,23,42,0.06);
+            padding: 12px 14px 8px 14px;
+            box-shadow: 0 14px 36px rgba(15,23,42,0.06);
             transition: transform .18s ease, box-shadow .18s ease;
         }
 
         div[data-testid="stPlotlyChart"]:hover{
             transform: translateY(-2px);
-            box-shadow: 0 18px 42px rgba(15,23,42,0.10);
+            box-shadow: 0 18px 44px rgba(15,23,42,0.10);
+        }
+
+        div[data-testid="stDataFrame"]{
+            border-radius: 20px;
+            overflow: hidden;
         }
 
         div[data-baseweb="tab-list"]{
@@ -127,43 +250,46 @@ def inject_custom_css():
         }
 
         div[data-baseweb="tab-list"] button{
-            background: rgba(255,255,255,0.84);
+            background: rgba(255,255,255,0.86);
             border: 1px solid rgba(148,163,184,0.16);
             border-radius: 999px;
             padding: .35rem .95rem;
+            box-shadow: 0 6px 16px rgba(15,23,42,0.03);
         }
 
         div[data-baseweb="tab-list"] button[aria-selected="true"]{
             background: linear-gradient(135deg, #1d4ed8, #0ea5e9);
             color: white;
             border-color: transparent;
+            box-shadow: 0 10px 22px rgba(37,99,235,0.20);
         }
 
         .hero-box{
-            background: linear-gradient(135deg, rgba(29,78,216,0.96), rgba(14,165,233,0.88));
+            background: linear-gradient(135deg, rgba(15,23,42,0.96), rgba(37,99,235,0.92) 55%, rgba(14,165,233,0.88));
             color: white;
-            padding: 1.18rem 1.3rem;
-            border-radius: 26px;
-            box-shadow: 0 18px 40px rgba(29,78,216,0.22);
-            margin-bottom: .95rem;
+            padding: 1.25rem 1.35rem;
+            border-radius: 28px;
+            box-shadow: 0 22px 48px rgba(29,78,216,0.18);
+            margin-bottom: 1rem;
         }
 
         .hero-box h3{
             margin: 0;
-            font-size: 1.35rem;
-            font-weight: 700;
+            font-size: 1.38rem;
+            font-weight: 800;
             color: white;
         }
 
         .hero-box p{
-            margin: .42rem 0 0 0;
+            margin: .48rem 0 0 0;
             color: rgba(255,255,255,0.93);
             font-size: .95rem;
+            line-height: 1.55;
         }
 
         .glass-box{
-            background: rgba(255,255,255,0.88);
-            border: 1px solid rgba(148,163,184,0.16);
+            background: rgba(255,255,255,0.90);
+            border: 1px solid rgba(148,163,184,0.14);
             border-radius: 22px;
             padding: 1rem 1.05rem;
             box-shadow: 0 10px 30px rgba(15,23,42,0.05);
@@ -177,13 +303,100 @@ def inject_custom_css():
             padding: .35rem .75rem;
             border-radius: 999px;
             font-size: .82rem;
-            font-weight: 700;
+            font-weight: 800;
             margin-bottom: .55rem;
+        }
+
+        .mini-insight{
+            background: linear-gradient(180deg, rgba(255,255,255,0.94), rgba(248,250,252,0.90));
+            border: 1px solid rgba(148,163,184,0.14);
+            border-radius: 20px;
+            padding: 14px 16px;
+            min-height: 112px;
+            box-shadow: 0 10px 28px rgba(15,23,42,0.04);
+        }
+
+        .mini-insight-label{
+            font-size: .74rem;
+            text-transform: uppercase;
+            letter-spacing: .10em;
+            color: #64748b;
+            font-weight: 800;
+            margin-bottom: 7px;
+        }
+
+        .mini-insight-value{
+            font-size: 1.05rem;
+            font-weight: 800;
+            color: #0f172a;
+            line-height: 1.25;
+            margin-bottom: 6px;
+        }
+
+        .mini-insight-subtitle{
+            font-size: .84rem;
+            color: #475569;
+            line-height: 1.45;
+        }
+
+        .ranking-card{
+            background: rgba(255,255,255,0.94);
+            border: 1px solid rgba(148,163,184,0.14);
+            border-radius: 24px;
+            padding: 1rem 1rem;
+            box-shadow: 0 12px 32px rgba(15,23,42,0.05);
+            height: 100%;
+        }
+
+        .ranking-title{
+            font-size: .9rem;
+            font-weight: 800;
+            color: #0f172a;
+            margin-bottom: .75rem;
+        }
+
+        .ranking-item{
+            display: flex;
+            gap: 10px;
+            align-items: flex-start;
+            padding: 9px 0;
+            border-bottom: 1px dashed rgba(148,163,184,0.22);
+        }
+
+        .ranking-item:last-child{
+            border-bottom: none;
+            padding-bottom: 0;
+        }
+
+        .ranking-badge{
+            min-width: 28px;
+            height: 28px;
+            border-radius: 999px;
+            background: linear-gradient(135deg, #2563eb, #0ea5e9);
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 800;
+            font-size: .78rem;
+        }
+
+        .ranking-name{
+            font-size: .86rem;
+            font-weight: 700;
+            color: #0f172a;
+            line-height: 1.35;
+        }
+
+        .ranking-meta{
+            font-size: .8rem;
+            color: #64748b;
+            margin-top: 2px;
         }
 
         .stButton > button, .stDownloadButton > button {
             border-radius: 999px;
-            font-weight: 600;
+            font-weight: 700;
         }
 
         .stTextInput > div > div, .stSelectbox > div > div, .stMultiSelect > div > div {
@@ -193,7 +406,6 @@ def inject_custom_css():
         """,
         unsafe_allow_html=True,
     )
-
 def render_page_hero(title, subtitle):
     st.markdown(
         f"""
@@ -221,7 +433,7 @@ def get_plotly_download_config(filename):
 def style_fig(fig, height=420, horizontal_legend=True):
     fig.update_layout(
         height=height,
-        margin=dict(l=14, r=14, t=54, b=18),
+        margin=dict(l=18, r=18, t=62, b=18),
         paper_bgcolor="rgba(0,0,0,0)",
         plot_bgcolor="rgba(0,0,0,0)",
         font=dict(
@@ -230,6 +442,8 @@ def style_fig(fig, height=420, horizontal_legend=True):
             color="#0f172a",
         ),
         hoverlabel=dict(bgcolor="#ffffff", font_size=12),
+        uniformtext_minsize=10,
+        uniformtext_mode="hide",
     )
     if horizontal_legend:
         fig.update_layout(
@@ -239,12 +453,12 @@ def style_fig(fig, height=420, horizontal_legend=True):
                 y=1.02,
                 xanchor="right",
                 x=1,
+                title=None,
             )
         )
-    fig.update_xaxes(showgrid=False, zeroline=False)
-    fig.update_yaxes(showgrid=True, gridcolor="rgba(148,163,184,0.20)", zeroline=False)
+    fig.update_xaxes(showgrid=False, zeroline=False, automargin=True)
+    fig.update_yaxes(showgrid=True, gridcolor="rgba(148,163,184,0.18)", zeroline=False, automargin=True)
     return fig
-
 def render_plotly(fig, key, filename):
     config = get_plotly_download_config(filename)
     try:
@@ -303,14 +517,22 @@ if not st.session_state.authenticated:
 with st.sidebar:
     st.markdown(
         """
-        <div style="text-align:center; padding: .35rem 0 .2rem 0;">
-            <div style="font-size:1.55rem; font-weight:800;">📊 Mamayo Data</div>
-            <div style="opacity:.78; font-size:.88rem;">Dashboard olah data SIPD modern</div>
+        <div class="sidebar-brand">
+            <div class="brand-mark">MD</div>
+            <div>
+                <div class="brand-title">Mamayo Data</div>
+                <div class="brand-subtitle">Admin Dashboard SIPD</div>
+            </div>
         </div>
+        <div class="sidebar-mini-card">
+            <div class="sidebar-mini-label">Workspace</div>
+            <div class="sidebar-mini-title">Pengelolaan Anggaran</div>
+            <div class="sidebar-mini-subtitle">Satu tempat untuk olah Excel, import SIPD, dan rekap dashboard dengan tampilan lebih modern.</div>
+        </div>
+        <div class="sidebar-section-title">Menu Utama</div>
         """,
         unsafe_allow_html=True,
     )
-    st.markdown("---")
 
     menu_pilihan = option_menu(
         menu_title=None,
@@ -325,20 +547,29 @@ with st.sidebar:
                 "font-size": "15px",
                 "text-align": "left",
                 "margin": "6px 0",
-                "border-radius": "14px",
+                "border-radius": "16px",
                 "--hover-color": "rgba(14, 165, 233, 0.18)",
-                "padding": "10px 12px",
+                "padding": "11px 13px",
+                "font-weight": "600",
             },
             "nav-link-selected": {
                 "background": "linear-gradient(135deg, #2563eb, #0ea5e9)",
                 "color": "white",
-                "font-weight": "700",
+                "font-weight": "800",
+                "box-shadow": "0 12px 24px rgba(37, 99, 235, 0.28)",
             },
         },
     )
 
-    st.markdown("---")
-    st.caption("🚀 Dikembangkan dengan Python, Streamlit, Plotly, dan Supabase")
+    st.markdown(
+        """
+        <div class="sidebar-footer-box">
+            <div class="sidebar-footer-title">Mamayo Suite</div>
+            <div class="sidebar-footer-subtitle">Python • Streamlit • Plotly • Supabase</div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
 
 # ==========================================
 # FUNGSI-FUNGSI UTILITAS REUSABLE
@@ -1002,16 +1233,13 @@ elif menu_pilihan == "Rekap SIPD":
             <div class="hero-box">
                 <h3>Dashboard Anggaran {tahun_pilihan}</h3>
                 <p>
-                    Perbandingan <b>{tahap_awal}</b> vs <b>{tahap_akhir}</b> ·
-                    {len(list_tahapan)} tahapan aktif ·
-                    Mode data: <b>{nama_file_export.replace("_", " ")}</b>
+                    Tampilan ringkas untuk memantau perubahan anggaran dari <b>{tahap_awal}</b> ke <b>{tahap_akhir}</b>,
+                    lengkap dengan komposisi sumber dana, leaderboard SKPD, dan perubahan sub kegiatan.
                 </p>
             </div>
             """,
             unsafe_allow_html=True,
         )
-
-        st.caption("Tip: gunakan ikon kamera di kanan atas tiap chart untuk mengunduh PNG dengan resolusi lebih tajam.")
 
         df_dash = df_proses.copy()
         metrik_per_tahapan = df_dash.groupby("tahapan")["pagu"].sum()
@@ -1019,28 +1247,64 @@ elif menu_pilihan == "Rekap SIPD":
         pagu_awal = metrik_per_tahapan.get(tahap_awal, 0)
         pagu_akhir = metrik_per_tahapan.get(tahap_akhir, 0)
         selisih_total = pagu_akhir - pagu_awal
+        persentase_perubahan = 0 if pagu_awal == 0 else (selisih_total / pagu_awal) * 100
 
         jumlah_skpd = df_dash[df_dash["tahapan"] == tahap_akhir]["kode_skpd"].nunique()
         jumlah_sub_keg = df_dash[df_dash["tahapan"] == tahap_akhir]["kode_sub_kegiatan"].nunique()
         jumlah_program = df_dash[df_dash["tahapan"] == tahap_akhir]["kode_program"].nunique()
+        jumlah_sumber_dana = (
+            df_dash[df_dash["tahapan"] == tahap_akhir]["nama_sumber_dana"].replace("", "TIDAK DIKETAHUI").nunique()
+        )
 
+        st.markdown('<div class="section-chip">Overview</div>', unsafe_allow_html=True)
         m1, m2, m3, m4 = st.columns(4)
         with m1:
-            st.metric("💰 Total Pagu Akhir", format_rupiah(pagu_akhir))
+            st.metric("💰 Total Pagu Akhir", format_rupiah(pagu_akhir), delta=format_rupiah_singkat(selisih_total))
         with m2:
             st.metric("📉 Total Pagu Awal", format_rupiah(pagu_awal))
         with m3:
             st.metric("🏢 SKPD / Program", f"{jumlah_skpd} / {jumlah_program}")
         with m4:
-            st.metric(
-                "📊 Selisih Total",
-                format_rupiah(abs(selisih_total)),
-                delta=f"{'+' if selisih_total >= 0 else '-'} {format_rupiah(abs(selisih_total))}",
+            st.metric("📦 Sub Kegiatan", f"{jumlah_sub_keg}", delta=f"{jumlah_sumber_dana} sumber dana")
+
+        insight1, insight2, insight3 = st.columns(3)
+        with insight1:
+            st.markdown(
+                f"""
+                <div class="mini-insight">
+                    <div class="mini-insight-label">Pertumbuhan Anggaran</div>
+                    <div class="mini-insight-value">{persentase_perubahan:+.2f}%</div>
+                    <div class="mini-insight-subtitle">Perubahan dari {tahap_awal} ke {tahap_akhir}.</div>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+        with insight2:
+            st.markdown(
+                f"""
+                <div class="mini-insight">
+                    <div class="mini-insight-label">Tahapan Aktif</div>
+                    <div class="mini-insight-value">{len(list_tahapan)} tahapan</div>
+                    <div class="mini-insight-subtitle">Urutan aktif: {' • '.join(list_tahapan[:4])}{' ...' if len(list_tahapan) > 4 else ''}</div>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+        with insight3:
+            st.markdown(
+                f"""
+                <div class="mini-insight">
+                    <div class="mini-insight-label">Mode Data</div>
+                    <div class="mini-insight-value">{nama_file_export.replace('_', ' ')}</div>
+                    <div class="mini-insight-subtitle">Tahun anggaran {tahun_pilihan} dengan nomenklatur terbaru.</div>
+                </div>
+                """,
+                unsafe_allow_html=True,
             )
 
-        st.caption(f"Sub kegiatan aktif pada {tahap_akhir}: {jumlah_sub_keg}")
+        st.caption("Tip: gunakan ikon kamera di kanan atas tiap chart untuk mengunduh gambar dengan kualitas lebih tajam.")
 
-        col_chart1, col_chart2 = st.columns([1.15, 0.85], gap="large")
+        col_chart1, col_chart2 = st.columns([1.2, 0.8], gap="large")
 
         with col_chart1:
             df_bar = pd.DataFrame(
@@ -1049,24 +1313,31 @@ elif menu_pilihan == "Rekap SIPD":
                     "Total Pagu": [metrik_per_tahapan.get(t, 0) for t in list_tahapan],
                 }
             )
-            df_bar["Label"] = df_bar["Total Pagu"].apply(format_rupiah)
+            df_bar["LabelHover"] = df_bar["Total Pagu"].apply(format_rupiah)
+            df_bar["LabelSingkat"] = df_bar["Total Pagu"].apply(format_rupiah_singkat)
+            tampilkan_label_bar = len(df_bar) <= 6
 
             fig_bar = px.bar(
                 df_bar,
                 x="Tahapan",
                 y="Total Pagu",
-                text="Label",
+                text="LabelSingkat" if tampilkan_label_bar else None,
                 color="Tahapan",
                 color_discrete_sequence=CHART_PALETTE,
             )
             fig_bar.update_traces(
                 textposition="outside",
                 cliponaxis=False,
-                customdata=df_bar[["Label"]],
+                customdata=df_bar[["LabelHover"]],
                 hovertemplate="<b>%{x}</b><br>%{customdata[0]}<extra></extra>",
             )
             style_fig(fig_bar, height=430)
-            fig_bar.update_layout(title="Perbandingan Total Pagu per Tahapan", xaxis_title="", yaxis_title="")
+            fig_bar.update_layout(
+                title="Perbandingan Total Pagu per Tahapan",
+                xaxis_title="",
+                yaxis_title="",
+                showlegend=False,
+            )
             render_plotly(
                 fig_bar,
                 key="dashboard_bar_tahapan",
@@ -1090,45 +1361,72 @@ elif menu_pilihan == "Rekap SIPD":
                     lainnya = sd_pie.iloc[5:]["pagu"].sum()
                     if lainnya > 0:
                         top_sd = pd.concat(
-                            [
-                                top_sd,
-                                pd.DataFrame([{"nama_sumber_dana": "Lainnya", "pagu": lainnya}]),
-                            ],
+                            [top_sd, pd.DataFrame([{"nama_sumber_dana": "Lainnya", "pagu": lainnya}])],
                             ignore_index=True,
                         )
                     sd_pie_show = top_sd
                 else:
                     sd_pie_show = sd_pie.copy()
 
-                sd_pie_show["Label"] = sd_pie_show["pagu"].apply(format_rupiah)
+                sd_pie_show["LabelHover"] = sd_pie_show["pagu"].apply(format_rupiah)
 
                 fig_pie = px.pie(
                     sd_pie_show,
                     names="nama_sumber_dana",
                     values="pagu",
-                    hole=0.62,
+                    hole=0.66,
                     color_discrete_sequence=CHART_PALETTE[:6],
                 )
                 fig_pie.update_traces(
                     textinfo="percent",
-                    customdata=sd_pie_show[["Label"]],
+                    textposition="inside",
+                    insidetextorientation="radial",
+                    customdata=sd_pie_show[["LabelHover"]],
                     hovertemplate="<b>%{label}</b><br>%{customdata[0]}<br>%{percent}<extra></extra>",
+                    sort=False,
                 )
                 fig_pie.add_annotation(
-                    text=f"<b>Total</b><br>{format_rupiah(sd_pie_show['pagu'].sum())}",
+                    text=f"<b>{len(sd_pie_show)}</b><br>Sumber Dana",
                     x=0.5,
                     y=0.5,
                     showarrow=False,
                 )
-                style_fig(fig_pie, height=430)
-                fig_pie.update_layout(title=f"Komposisi Sumber Dana · {tahap_akhir}")
+                style_fig(fig_pie, height=430, horizontal_legend=False)
+                fig_pie.update_layout(title=f"Komposisi Sumber Dana · {tahap_akhir}", showlegend=False)
                 render_plotly(
                     fig_pie,
                     key="dashboard_pie_sd",
                     filename=safe_stem(f"sumber_dana_{tahun_pilihan}_{tahap_akhir}"),
                 )
+
+                tampil_sd = sd_pie_show[["nama_sumber_dana", "pagu"]].copy()
+                try:
+                    st.dataframe(
+                        tampil_sd,
+                        width="stretch",
+                        height=min(250, 42 + (len(tampil_sd) * 35)),
+                        hide_index=True,
+                        column_config={
+                            "nama_sumber_dana": "Sumber Dana",
+                            "pagu": st.column_config.NumberColumn("Pagu", format="Rp %.0f"),
+                        },
+                    )
+                except TypeError:
+                    st.dataframe(
+                        tampil_sd,
+                        use_container_width=True,
+                        height=min(250, 42 + (len(tampil_sd) * 35)),
+                        hide_index=True,
+                        column_config={
+                            "nama_sumber_dana": "Sumber Dana",
+                            "pagu": st.column_config.NumberColumn("Pagu", format="Rp %.0f"),
+                        },
+                    )
             else:
                 st.info("Tidak ada data sumber dana untuk ditampilkan.")
+
+        st.markdown('<div class="section-chip">Leaderboard</div>', unsafe_allow_html=True)
+        col_skpd_chart, col_skpd_rank = st.columns([1.35, 0.65], gap="large")
 
         df_skpd_dash = (
             df_dash[df_dash["tahapan"] == tahap_akhir]
@@ -1140,40 +1438,68 @@ elif menu_pilihan == "Rekap SIPD":
 
         if not df_skpd_dash.empty:
             total_skpd_di_chart = len(df_skpd_dash)
-            df_skpd_show = df_skpd_dash.head(15).copy()
-            df_skpd_show = df_skpd_show.sort_values("pagu", ascending=True)
-            df_skpd_show["label_skpd"] = df_skpd_show["nama_skpd"].apply(lambda x: shorten_text(x, 42))
-            df_skpd_show["Label"] = df_skpd_show["pagu"].apply(format_rupiah)
+            df_skpd_show = df_skpd_dash.head(12).copy().sort_values("pagu", ascending=True)
+            df_skpd_show["label_skpd"] = df_skpd_show["nama_skpd"].apply(lambda x: shorten_text(x, 40))
+            df_skpd_show["LabelHover"] = df_skpd_show["pagu"].apply(format_rupiah)
 
-            fig_skpd = px.bar(
-                df_skpd_show,
-                x="pagu",
-                y="label_skpd",
-                orientation="h",
-                text="Label",
-            )
-            fig_skpd.update_traces(
-                marker_color=COLOR_PRIMARY,
-                textposition="outside",
-                cliponaxis=False,
-                customdata=df_skpd_show[["Label", "nama_skpd"]],
-                hovertemplate="<b>%{customdata[1]}</b><br>%{customdata[0]}<extra></extra>",
-            )
-            style_fig(fig_skpd, height=max(430, len(df_skpd_show) * 38), horizontal_legend=False)
-            fig_skpd.update_layout(title=f"15 SKPD dengan Pagu Terbesar · {tahap_akhir}", xaxis_title="", yaxis_title="")
-            render_plotly(
-                fig_skpd,
-                key="dashboard_bar_skpd",
-                filename=safe_stem(f"top_skpd_{tahun_pilihan}_{tahap_akhir}"),
-            )
+            with col_skpd_chart:
+                fig_skpd = px.bar(
+                    df_skpd_show,
+                    x="pagu",
+                    y="label_skpd",
+                    orientation="h",
+                    color="pagu",
+                    color_continuous_scale=["#bfdbfe", "#2563eb"],
+                )
+                fig_skpd.update_coloraxes(showscale=False)
+                fig_skpd.update_traces(
+                    customdata=df_skpd_show[["LabelHover", "nama_skpd"]],
+                    hovertemplate="<b>%{customdata[1]}</b><br>%{customdata[0]}<extra></extra>",
+                    text=None,
+                )
+                style_fig(fig_skpd, height=max(430, len(df_skpd_show) * 38), horizontal_legend=False)
+                fig_skpd.update_layout(
+                    title=f"12 SKPD dengan Pagu Terbesar · {tahap_akhir}",
+                    xaxis_title="",
+                    yaxis_title="",
+                    showlegend=False,
+                )
+                render_plotly(
+                    fig_skpd,
+                    key="dashboard_bar_skpd",
+                    filename=safe_stem(f"top_skpd_{tahun_pilihan}_{tahap_akhir}"),
+                )
+                if total_skpd_di_chart > 12:
+                    st.caption(f"Menampilkan 12 dari {total_skpd_di_chart} SKPD.")
 
-            if total_skpd_di_chart > 15:
-                st.caption(f"Menampilkan 15 dari {total_skpd_di_chart} SKPD.")
+            with col_skpd_rank:
+                top5_rank = df_skpd_dash.head(5).copy()
+                items = []
+                for urut, (_, row) in enumerate(top5_rank.iterrows(), start=1):
+                    items.append(
+                        f'''
+                        <div class="ranking-item">
+                            <div class="ranking-badge">{urut}</div>
+                            <div>
+                                <div class="ranking-name">{shorten_text(row['nama_skpd'], 46)}</div>
+                                <div class="ranking-meta">{format_rupiah_singkat(row['pagu'])}</div>
+                            </div>
+                        </div>
+                        '''
+                    )
+                st.markdown(
+                    f"""
+                    <div class="ranking-card">
+                        <div class="ranking-title">Top 5 SKPD</div>
+                        {''.join(items)}
+                    </div>
+                    """,
+                    unsafe_allow_html=True,
+                )
         else:
             st.info("Tidak ada data SKPD untuk grafik.")
 
-        st.markdown("#### 🔝 Top 10 Sub Kegiatan dengan Perubahan Terbesar")
-
+        st.markdown('<div class="section-chip">Perubahan Detail</div>', unsafe_allow_html=True)
         df_selisih = (
             df_dash.groupby(["kode_sub_kegiatan", "nama_sub_kegiatan", "nama_skpd", "tahapan"])["pagu"]
             .sum()
@@ -1199,33 +1525,71 @@ elif menu_pilihan == "Rekap SIPD":
         top10 = pivot_selisih.nlargest(10, "Abs_Selisih").copy()
 
         if not top10.empty:
+            col_delta_chart, col_delta_info = st.columns([1.35, 0.65], gap="large")
             top10["Arah"] = top10["Selisih"].apply(lambda x: "Naik" if x >= 0 else "Turun")
-            top10["label_sub"] = top10["nama_sub_kegiatan"].apply(lambda x: shorten_text(x, 48))
-            top10["SelisihLabel"] = top10["Selisih"].apply(
-                lambda x: f"{'+' if x >= 0 else '-'} {format_rupiah(abs(x))}"
-            )
-
+            top10["label_sub"] = top10["nama_sub_kegiatan"].apply(lambda x: shorten_text(x, 52))
+            top10["SelisihHover"] = top10["Selisih"].apply(format_rupiah)
             top10_chart = top10.sort_values("Selisih").copy()
 
-            fig_delta = px.bar(
-                top10_chart,
-                x="Selisih",
-                y="label_sub",
-                orientation="h",
-                color="Arah",
-                color_discrete_map={"Naik": COLOR_SUCCESS, "Turun": COLOR_DANGER},
-            )
-            fig_delta.update_traces(
-                customdata=top10_chart[["SelisihLabel", "nama_skpd"]],
-                hovertemplate="<b>%{y}</b><br>%{customdata[0]}<br>SKPD: %{customdata[1]}<extra></extra>",
-            )
-            style_fig(fig_delta, height=500)
-            fig_delta.update_layout(title=f"Perubahan {tahap_akhir} vs {tahap_awal}", xaxis_title="", yaxis_title="")
-            render_plotly(
-                fig_delta,
-                key="dashboard_delta_subkeg",
-                filename=safe_stem(f"delta_sub_kegiatan_{tahun_pilihan}"),
-            )
+            with col_delta_chart:
+                fig_delta = px.bar(
+                    top10_chart,
+                    x="Selisih",
+                    y="label_sub",
+                    orientation="h",
+                    color="Arah",
+                    color_discrete_map={"Naik": COLOR_SUCCESS, "Turun": COLOR_DANGER},
+                )
+                fig_delta.update_traces(
+                    customdata=top10_chart[["SelisihHover", "nama_skpd"]],
+                    hovertemplate="<b>%{y}</b><br>%{customdata[0]}<br>SKPD: %{customdata[1]}<extra></extra>",
+                )
+                style_fig(fig_delta, height=500)
+                fig_delta.update_layout(
+                    title=f"Top 10 Perubahan Sub Kegiatan · {tahap_akhir} vs {tahap_awal}",
+                    xaxis_title="",
+                    yaxis_title="",
+                )
+                render_plotly(
+                    fig_delta,
+                    key="dashboard_delta_subkeg",
+                    filename=safe_stem(f"delta_sub_kegiatan_{tahun_pilihan}"),
+                )
+
+            naik_terbesar = top10.loc[top10["Selisih"].idxmax()] if (top10["Selisih"] >= 0).any() else None
+            turun_terbesar = top10.loc[top10["Selisih"].idxmin()] if (top10["Selisih"] < 0).any() else None
+            with col_delta_info:
+                insight_html = []
+                insight_html.append(
+                    f"""
+                    <div class="ranking-card" style="margin-bottom: 14px;">
+                        <div class="ranking-title">Ringkasan Perubahan</div>
+                        <div class="ranking-item"><div class="ranking-badge">+</div><div><div class="ranking-name">Sub kegiatan naik</div><div class="ranking-meta">{(top10['Selisih'] >= 0).sum()} item dalam Top 10</div></div></div>
+                        <div class="ranking-item"><div class="ranking-badge">-</div><div><div class="ranking-name">Sub kegiatan turun</div><div class="ranking-meta">{(top10['Selisih'] < 0).sum()} item dalam Top 10</div></div></div>
+                    </div>
+                    """
+                )
+                if naik_terbesar is not None:
+                    insight_html.append(
+                        f"""
+                        <div class="ranking-card" style="margin-bottom: 14px;">
+                            <div class="ranking-title">Kenaikan Terbesar</div>
+                            <div class="ranking-name">{shorten_text(naik_terbesar['nama_sub_kegiatan'], 54)}</div>
+                            <div class="ranking-meta">{format_rupiah(naik_terbesar['Selisih'])}</div>
+                        </div>
+                        """
+                    )
+                if turun_terbesar is not None:
+                    insight_html.append(
+                        f"""
+                        <div class="ranking-card">
+                            <div class="ranking-title">Penurunan Terbesar</div>
+                            <div class="ranking-name">{shorten_text(turun_terbesar['nama_sub_kegiatan'], 54)}</div>
+                            <div class="ranking-meta">{format_rupiah(turun_terbesar['Selisih'])}</div>
+                        </div>
+                        """
+                    )
+                st.markdown("".join(insight_html), unsafe_allow_html=True)
 
             nama_awal = f"Pagu {tahap_awal}"
             nama_akhir = f"Pagu {tahap_akhir}"
@@ -1238,22 +1602,33 @@ elif menu_pilihan == "Rekap SIPD":
             ].copy()
             tabel_top10.columns = ["Kode Sub", "Uraian Sub Kegiatan", "SKPD", nama_awal, nama_akhir, "Selisih"]
 
-            with st.expander("Lihat tabel detail Top 10", expanded=True):
-                st.dataframe(
-                    tabel_top10,
-                    use_container_width=True,
-                    column_config={
-                        nama_awal: st.column_config.NumberColumn(format="Rp %.0f"),
-                        nama_akhir: st.column_config.NumberColumn(format="Rp %.0f"),
-                        "Selisih": st.column_config.NumberColumn(format="Rp %.0f"),
-                    },
-                )
+            with st.expander("Lihat tabel detail Top 10 perubahan", expanded=True):
+                try:
+                    st.dataframe(
+                        tabel_top10,
+                        width="stretch",
+                        column_config={
+                            nama_awal: st.column_config.NumberColumn(format="Rp %.0f"),
+                            nama_akhir: st.column_config.NumberColumn(format="Rp %.0f"),
+                            "Selisih": st.column_config.NumberColumn(format="Rp %.0f"),
+                        },
+                    )
+                except TypeError:
+                    st.dataframe(
+                        tabel_top10,
+                        use_container_width=True,
+                        column_config={
+                            nama_awal: st.column_config.NumberColumn(format="Rp %.0f"),
+                            nama_akhir: st.column_config.NumberColumn(format="Rp %.0f"),
+                            "Selisih": st.column_config.NumberColumn(format="Rp %.0f"),
+                        },
+                    )
         else:
             st.info("Tidak cukup data untuk menampilkan perubahan sub kegiatan.")
 
-        st.markdown("#### 🔍 Cari Sub Kegiatan, Kode Sub, atau SKPD")
+        st.markdown('<div class="section-chip">Pencarian Cepat</div>', unsafe_allow_html=True)
         keyword = st.text_input(
-            "Kata kunci pencarian",
+            "Cari sub kegiatan, kode sub, atau SKPD",
             placeholder="Contoh: sanitasi, 1.02.03, atau nama SKPD",
         )
 
@@ -1263,9 +1638,9 @@ elif menu_pilihan == "Rekap SIPD":
                 | df_dash["kode_sub_kegiatan"].str.contains(keyword, case=False, na=False)
                 | df_dash["nama_skpd"].str.contains(keyword, case=False, na=False)
             )
+
             hasil = df_dash[mask].copy()
             st.success(f"Menemukan {len(hasil)} baris hasil pencarian.")
-
             kolom_tampil = [
                 "kode_sub_kegiatan",
                 "nama_sub_kegiatan",
@@ -1274,11 +1649,22 @@ elif menu_pilihan == "Rekap SIPD":
                 "pagu",
                 "nama_sumber_dana",
             ]
-            st.dataframe(
-                hasil[kolom_tampil].sort_values("pagu", ascending=False),
-                use_container_width=True,
-                column_config={"pagu": st.column_config.NumberColumn(format="Rp %.0f")},
-            )
+            try:
+                st.dataframe(
+                    hasil[kolom_tampil].sort_values("pagu", ascending=False),
+                    width="stretch",
+                    column_config={
+                        "pagu": st.column_config.NumberColumn(format="Rp %.0f"),
+                    },
+                )
+            except TypeError:
+                st.dataframe(
+                    hasil[kolom_tampil].sort_values("pagu", ascending=False),
+                    use_container_width=True,
+                    column_config={
+                        "pagu": st.column_config.NumberColumn(format="Rp %.0f"),
+                    },
+                )
 
             if len(hasil) > 0:
                 hasil_csv = hasil[kolom_tampil].to_csv(index=False).encode("utf-8")
